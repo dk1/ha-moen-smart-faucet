@@ -1,0 +1,48 @@
+[
+  {
+    "duid": "00000000-0000-4000-8000-000000000001",
+    "nickname": "Kitchen Faucet",
+    "federatedIdentity": "us-east-2:00000000-0000-4000-8000-0000000000aa",
+    "deviceType": "VAK",
+    "locationId": "00000000-0000-4000-8000-0000000000bb",
+    "roomId": "00000000-0000-4000-8000-0000000000cc",
+    "sku": "300000",
+    "clientId": "100000001",
+    "defaultFaucet": true,
+    "firmwareVersion": "v1.1.2q",
+    "wifiNetwork": "example-ssid",
+    "connected": true,
+    "wifiRssi": -67,
+    "state": "idle",
+    "assemblyAirTemp": 17,
+    "isFreezing": false,
+    "safetyLimitTemp": 48.889999,
+    "safetyModeEnabled": true,
+    "childLimitTemp": 40.560001,
+    "childModeEnabled": false,
+    "batteryLifeRemaining": -1,
+    "batteryPercentage": 100,
+    "powerSource": "battery",
+    "volume": 2220039,
+    "temperature": 35.867001,
+    "temperatureGoal": "specific"
+  },
+  {
+    "duid": "00000000-0000-4000-8000-000000000002",
+    "nickname": "Old Faucet",
+    "deviceType": "VAK",
+    "sku": "7864evbl",
+    "clientId": "100000002",
+    "firmwareVersion": "v1.1.8c",
+    "connected": false,
+    "state": "idle",
+    "batteryPercentage": 100,
+    "temperature": 18.0
+  },
+  {
+    "duid": "00000000-0000-4000-8000-000000000003",
+    "nickname": "Water Monitor",
+    "deviceType": "NAB",
+    "clientId": "100000003"
+  }
+]

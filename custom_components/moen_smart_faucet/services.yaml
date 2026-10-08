@@ -1,0 +1,21 @@
+run:
+  target:
+    entity:
+      integration: moen_smart_faucet
+      domain: valve
+  fields:
+    temperature:
+      selector:
+        number:
+          min: 5
+          max: 60
+          step: 0.5
+          unit_of_measurement: "°C"
+          mode: box
+    preset:
+      selector:
+        select:
+          translation_key: preset
+          options:
+            - hottest
+            - coldest

@@ -1,0 +1,136 @@
+"""Tests for the API client, against a mocked HTTP layer."""
+
+from http import HTTPStatus
+
+import pytest
+from pytest_homeassistant_custom_component.test_util.aiohttp import (
+    AiohttpClientMocker,
+)
+
+from custom_components.moen_smart_faucet.api import (
+    CLIENT_ID,
+    INVOKER_URL,
+    TOKEN_URL,
+    MoenAuthError,
+    MoenClient,
+    MoenCommandError,
+    MoenConnectionError,
+)
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+from .conftest import FAUCET_ID, load_devices
+
+TOKEN = {"token": {"access_token": "a1", "refresh_token": "r1", "expires_in": "3600"}}
+
+
+def client(hass: HomeAssistant) -> MoenClient:
+    return MoenClient(async_get_clientsession(hass), "user@example.com", "pw")
+
+
+async def test_login_and_faucets(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Login uses the app's grant type; faucets are filtered by device type."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json=load_devices())
+
+    result = await client(hass).async_get_faucets()
+    assert set(result) == {"100000001", "100000002"}
+
+    _, _, login_body, _ = aioclient_mock.mock_calls[0]
+    assert login_body == {
+        "client_id": CLIENT_ID,
+        "grant_type": "client_credentials",
+        "username": "user@example.com",
+        "password": "pw",
+    }
+    _, _, invoke_body, headers = aioclient_mock.mock_calls[1]
+    assert invoke_body == {
+        "fn": "smartwater-app-device-api-prod-list",
+        "parse": True,
+        "escape": True,
+    }
+    assert headers["Authorization"] == "Bearer a1"
+
+
+@pytest.mark.parametrize("status", [HTTPStatus.BAD_REQUEST, HTTPStatus.UNAUTHORIZED])
+async def test_login_rejected(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, status: HTTPStatus
+) -> None:
+    """Rejected credentials raise MoenAuthError."""
+    aioclient_mock.post(TOKEN_URL, status=status)
+    with pytest.raises(MoenAuthError):
+        await client(hass).async_login()
+
+
+async def test_login_server_error(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Server errors raise MoenConnectionError."""
+    aioclient_mock.post(TOKEN_URL, status=HTTPStatus.NOT_IMPLEMENTED)
+    with pytest.raises(MoenConnectionError):
+        await client(hass).async_login()
+
+
+async def test_unauthorized_invoke_refreshes(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A 401 from the invoker refreshes the token and retries once."""
+    moen = client(hass)
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    await moen.async_login()
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(INVOKER_URL, status=HTTPStatus.UNAUTHORIZED)
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    with pytest.raises(MoenAuthError):
+        await moen.async_get_devices()
+    # invoke, refresh, invoke again
+    assert [str(c[1]) for c in aioclient_mock.mock_calls] == [
+        INVOKER_URL,
+        TOKEN_URL,
+        INVOKER_URL,
+    ]
+    assert aioclient_mock.mock_calls[1][2]["grant_type"] == "refresh_token"
+
+
+async def test_commands(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Run and stop write the documented shadow payloads."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": True})
+    moen = client(hass)
+
+    await moen.async_run(FAUCET_ID, 38.04)
+    await moen.async_run(FAUCET_ID, "coldest")
+    await moen.async_stop(FAUCET_ID)
+
+    bodies = [c[2] for c in aioclient_mock.mock_calls if str(c[1]) == INVOKER_URL]
+    assert [b["fn"] for b in bodies] == ["smartwater-app-shadow-api-prod-update"] * 3
+    assert [b["body"] for b in bodies] == [
+        {
+            "clientId": FAUCET_ID,
+            "payload": {"command": "run", "commandSrc": "app", "temperature": 38.0},
+        },
+        {
+            "clientId": FAUCET_ID,
+            "payload": {
+                "command": "run",
+                "commandSrc": "app",
+                "temperature": "coldest",
+            },
+        },
+        {"clientId": FAUCET_ID, "payload": {"command": "stop"}},
+    ]
+
+
+async def test_command_rejected(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A response without status true is a command error."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": False})
+    with pytest.raises(MoenCommandError):
+        await client(hass).async_stop(FAUCET_ID)

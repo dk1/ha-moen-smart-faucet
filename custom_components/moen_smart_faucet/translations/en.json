@@ -1,0 +1,96 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "description": "Sign in with the account you use in the Moen app.",
+        "data": {
+          "username": "Email",
+          "password": "Password"
+        },
+        "data_description": {
+          "username": "The email address of your Moen account.",
+          "password": "The password of your Moen account."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Authentication expired for {name}",
+        "description": "The password for {username} no longer works. Enter the current one.",
+        "data": {
+          "password": "Password"
+        },
+        "data_description": {
+          "password": "The password of your Moen account."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "Account is already configured",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "freeze_risk": {
+        "name": "Freeze risk"
+      }
+    },
+    "number": {
+      "run_temperature": {
+        "name": "Run temperature"
+      }
+    },
+    "sensor": {
+      "water_temperature": {
+        "name": "Water temperature"
+      },
+      "cabinet_temperature": {
+        "name": "Cabinet temperature"
+      }
+    },
+    "valve": {
+      "water": {
+        "name": "Water"
+      }
+    }
+  },
+  "exceptions": {
+    "invalid_auth": {
+      "message": "Moen rejected the stored credentials."
+    },
+    "update_failed": {
+      "message": "Could not update faucet data: {error}"
+    },
+    "command_failed": {
+      "message": "The faucet command failed: {error}"
+    }
+  },
+  "services": {
+    "run": {
+      "name": "Run water",
+      "description": "Runs the faucet until the water reaches a temperature. Uses the faucet's run temperature if no temperature or preset is given.",
+      "fields": {
+        "temperature": {
+          "name": "Temperature",
+          "description": "Target water temperature in °C."
+        },
+        "preset": {
+          "name": "Preset",
+          "description": "Run at the hottest or coldest available water instead of a set temperature."
+        }
+      }
+    }
+  },
+  "selector": {
+    "preset": {
+      "options": {
+        "hottest": "Hottest",
+        "coldest": "Coldest"
+      }
+    }
+  }
+}

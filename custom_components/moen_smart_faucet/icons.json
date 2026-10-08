@@ -1,0 +1,39 @@
+{
+  "entity": {
+    "valve": {
+      "water": {
+        "default": "mdi:faucet",
+        "state": {
+          "closed": "mdi:faucet",
+          "open": "mdi:water"
+        }
+      }
+    },
+    "number": {
+      "run_temperature": {
+        "default": "mdi:thermometer-water"
+      }
+    },
+    "binary_sensor": {
+      "freeze_risk": {
+        "default": "mdi:snowflake-off",
+        "state": {
+          "on": "mdi:snowflake-alert"
+        }
+      }
+    },
+    "sensor": {
+      "cabinet_temperature": {
+        "default": "mdi:thermometer"
+      },
+      "water_temperature": {
+        "default": "mdi:thermometer-water"
+      }
+    }
+  },
+  "services": {
+    "run": {
+      "service": "mdi:faucet"
+    }
+  }
+}
