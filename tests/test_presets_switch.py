@@ -46,7 +46,7 @@ async def test_presets_added_and_removed(
     mock_client: AsyncMock,
     freezer: FrozenDateTimeFactory,
 ) -> None:
-    """New presets appear on the next refresh; deleted ones go unavailable."""
+    """New presets appear on the next refresh; deleted ones are removed."""
     presets = load_presets()
     mock_client.async_get_presets.return_value = [
         presets[1],
@@ -57,7 +57,7 @@ async def test_presets_added_and_removed(
     await hass.async_block_till_done()
 
     assert hass.states.get("button.kitchen_faucet_preset_pasta_pot") is not None
-    assert hass.states.get(SOUP).state == STATE_UNAVAILABLE
+    assert hass.states.get(SOUP) is None
     assert hass.states.get(TEA).state != STATE_UNAVAILABLE
 
 

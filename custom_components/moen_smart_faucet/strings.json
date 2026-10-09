@@ -100,7 +100,7 @@
       "message": "The faucet command failed: {error}"
     },
     "volume_out_of_range": {
-      "message": "The faucet can dispense between 15 mL (1 tablespoon) and 3.785 L (1 gallon)."
+      "message": "The faucet can dispense between 1 tablespoon (about 15 mL) and 1 gallon (about 3.785 L)."
     }
   },
   "services": {

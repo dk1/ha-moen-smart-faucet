@@ -152,7 +152,9 @@ async def test_open_close(
     ("data", "expected"),
     [
         ({"temperature": 30}, 30.0),
-        ({"preset": "hottest"}, "hottest"),
+        # With safety mode on, "hottest" becomes the safety limit.
+        ({"preset": "hottest"}, 48.0),
+        ({"preset": "coldest"}, "coldest"),
         ({}, 38.0),
     ],
 )
@@ -398,7 +400,7 @@ async def test_water_usage_counts_new_sessions_once(
         "timestamp": sessions[0]["timestamp"] + 60,
         "totalVolUl": 1_500_000,
     }
-    mock_client.async_get_sessions.return_value = [new, *sessions]
+    mock_client.async_get_sessions.return_value = ([new, *sessions], True)
     devices = load_devices()
     devices[0]["volume"] = 1_500_000
     mock_client.async_get_faucets.return_value = faucets(devices)

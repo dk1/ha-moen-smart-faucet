@@ -6,8 +6,12 @@ import voluptuous as vol
 
 from homeassistant.components.valve import DOMAIN as VALVE_DOMAIN
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, service
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    service,
+)
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
 
@@ -70,7 +74,10 @@ DISPENSE_SCHEMA = vol.All(
     cv.make_entity_service_schema(
         {
             vol.Required(ATTR_VOLUME): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            vol.Optional(ATTR_UNIT, default="ml"): vol.In(list(UNIT_TO_UL)),
+            # Case-insensitive, so "mL" and "L" work too.
+            vol.Optional(ATTR_UNIT, default="ml"): vol.All(
+                vol.Coerce(str), lambda unit: unit.lower(), vol.In(list(UNIT_TO_UL))
+            ),
             vol.Optional(ATTR_TEMPERATURE): TEMPERATURE,
             vol.Optional(ATTR_PRESET): PRESET,
             vol.Optional(ATTR_START, default=START_NOW): vol.In(
@@ -120,7 +127,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: MoenConfigEntry) -> bool
         client=client, coordinator=coordinator, presets=presets
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Entities are created per faucet at setup, so reload when one is added.
+    known = set(coordinator.data)
+
+    @callback
+    def _check_new_faucets() -> None:
+        if coordinator.data and set(coordinator.data) - known:
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+
+    entry.async_on_unload(coordinator.async_add_listener(_check_new_faucets))
     return True
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: MoenConfigEntry, device: dr.DeviceEntry
+) -> bool:
+    """Allow removing a faucet that is no longer on the Moen account."""
+    return not any(
+        identifier[0] == DOMAIN and identifier[1] in entry.runtime_data.coordinator.data
+        for identifier in device.identifiers
+    )
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MoenConfigEntry) -> bool:

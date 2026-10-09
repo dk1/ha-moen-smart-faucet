@@ -45,3 +45,17 @@ jobs:
           cache: pip
       - run: pip install pytest-homeassistant-custom-component==${{ matrix.harness }} pyyaml
       - run: pytest ${{ matrix.pytest-args }}
+
+  # Early warning for new Home Assistant releases; doesn't fail the build.
+  # Snapshots are pinned to a release, so they're skipped here.
+  tests-latest:
+    name: tests (latest Home Assistant, informational)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: pip install --upgrade pytest-homeassistant-custom-component pyyaml
+      - run: pytest --deselect tests/test_snapshots.py

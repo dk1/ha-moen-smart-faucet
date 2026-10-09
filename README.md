@@ -32,7 +32,8 @@ Copy `custom_components/moen_smart_faucet` into your Home Assistant
 
 Go to **Settings → Devices & services → Add integration**, search for **Moen Smart
 Faucet**, and sign in with the email and password you use in the Moen app. Every
-smart faucet on the account is added as a device. If your password changes, Home
+smart faucet on the account is added as a device; faucets added to the account later
+appear automatically, and ones removed can be deleted from the device page. If your password changes, Home
 Assistant prompts you to re-enter it.
 
 ## Entities
@@ -46,7 +47,7 @@ Each faucet gets:
 | Flow rate | Number | How hard the water runs when the valve opens: 30–100 %. Starts at the faucet's default flow rate. |
 | Dispense amount | Number | Amount poured by the Dispense button, in mL (15 mL to 3785 mL). Defaults to 250 mL. |
 | Dispense | Button | Pours the dispense amount at the run temperature, straight away. |
-| Preset *name* | Buttons | One per preset saved in the Moen app (shared across the account's faucets). Runs it exactly as the app would. New presets appear within 30 minutes; deleted ones become unavailable. |
+| Preset *name* | Buttons | One per preset saved in the Moen app (shared across the account's faucets). Runs it the way the app does. Presets added, renamed or deleted in the app are picked up within 30 minutes. |
 | Freeze protection | Switch (config) | When on, the faucet trickles water if its cabinet gets cold. |
 | Water temperature | Sensor | Last reported outlet temperature. See [limitations](#limitations). |
 | Cabinet temperature | Sensor | Temperature of the under-sink control box. |
@@ -60,8 +61,9 @@ Each faucet gets:
 Run temperature, flow rate and dispense amount are stored in Home Assistant, not on the
 faucet, and survive restarts.
 
-While a faucet is offline its entities are unavailable, except for connectivity and
-run temperature.
+While a faucet is offline, its controls and live sensors are unavailable. Connectivity,
+the settings kept in Home Assistant (run temperature, flow rate, dispense amount) and
+the usage sensors stay available.
 
 ## Actions
 
@@ -74,7 +76,15 @@ Runs the water on one or more faucet valves. Optional fields:
 - `flow_rate`: 30–100 %.
 
 Anything not given comes from the faucet's run temperature and flow rate settings. A
-temperature above the safety limit is pulled down to it. A target colder than your cold
+temperature above the safety (or child) limit is pulled down to it, and with either
+limit on, `hottest` means that limit. Changing the flow rate or run temperature while
+a run Home Assistant started is going adjusts it live; runs started at the faucet are
+never taken over.
+
+How a run ends: the faucet stops it on its own timers. With a flow rate set, this
+integration sends the same flags as the Moen app's "temperature + flow" preset, and how
+long such a run lasts before the faucet's auto shut-off (`handleTimeout`, up to 15
+minutes) has not been verified. Close the valve to stop the water. A target colder than your cold
 water supply can't be reached: the faucet runs until its own time limit (2 minutes on the
 faucet this was developed with) and stops. Use `preset: coldest` for the coldest water
 available right now.

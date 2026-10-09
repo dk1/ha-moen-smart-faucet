@@ -31,7 +31,8 @@ from .const import (
 from .coordinator import MoenConfigEntry, MoenCoordinator
 from .entity import MoenEntity
 
-PARALLEL_UPDATES = 0
+# Setting a value can send `run`; keep those in order.
+PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -156,8 +157,14 @@ class MoenNumber(MoenEntity, RestoreNumber):
         """Store a new value, and apply it to a run Home Assistant started."""
         self._store[self.client_id] = value
         self.async_write_ha_state()
-        if (
-            self.entity_description.adjusts_run
-            and self.client_id in self.coordinator.ha_runs
+        if self.entity_description.adjusts_run and self.coordinator.can_adjust_run(
+            self.client_id
         ):
-            await self.async_send_command(self.coordinator.async_run(self.client_id))
+            key = self.entity_description.key
+            await self.async_send_command(
+                self.coordinator.async_adjust_run(
+                    self.client_id,
+                    temperature=value if key == "run_temperature" else None,
+                    flow_rate=value if key == "flow_rate" else None,
+                )
+            )

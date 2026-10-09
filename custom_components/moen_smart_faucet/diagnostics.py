@@ -16,7 +16,9 @@ TO_REDACT = {
     "clientId",
     "duid",
     "federatedIdentity",
+    "lastConnect",
     "locationId",
+    "nickname",
     "roomId",
     "wifiNetwork",
 }

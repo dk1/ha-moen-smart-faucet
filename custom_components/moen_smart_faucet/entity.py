@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Awaitable
 from typing import Any
 
+from homeassistant.core import CALLBACK_TYPE, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later
@@ -27,6 +28,7 @@ class MoenEntity(CoordinatorEntity[MoenCoordinator]):
         """Initialize the entity."""
         super().__init__(coordinator)
         self.client_id = client_id
+        self._unsub_refresh: CALLBACK_TYPE | None = None
         self._attr_unique_id = f"{client_id}_{key}"
         device = coordinator.data[client_id]
         self._attr_device_info = DeviceInfo(
@@ -52,7 +54,11 @@ class MoenEntity(CoordinatorEntity[MoenCoordinator]):
         return not self._requires_connection or bool(self.device.get("connected"))
 
     async def async_send_command(self, command: Awaitable[None]) -> None:
-        """Send a faucet command, then refresh once the faucet has reacted."""
+        """Send a faucet command, then refresh once the faucet has reacted.
+
+        The refresh is scheduled even if the command fails: a timed-out command
+        may still have reached the faucet.
+        """
         try:
             await command
         except MoenError as err:
@@ -61,10 +67,25 @@ class MoenEntity(CoordinatorEntity[MoenCoordinator]):
                 translation_key="command_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        finally:
+            self._schedule_refresh()
+
+    @callback
+    def _schedule_refresh(self) -> None:
+        if self._unsub_refresh:
+            self._unsub_refresh()
 
         async def _refresh(_: Any) -> None:
+            self._unsub_refresh = None
             await self.coordinator.async_request_refresh()
 
-        self.async_on_remove(
-            async_call_later(self.hass, COMMAND_REFRESH_DELAY, _refresh)
+        self._unsub_refresh = async_call_later(
+            self.hass, COMMAND_REFRESH_DELAY, _refresh
         )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel a pending refresh."""
+        if self._unsub_refresh:
+            self._unsub_refresh()
+            self._unsub_refresh = None
+        await super().async_will_remove_from_hass()

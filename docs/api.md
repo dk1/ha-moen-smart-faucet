@@ -26,10 +26,10 @@ only.
 | `smartwater-app-device-api-prod-update` | `{clientId, nickname}` | Rename. **code** |
 | `smartwater-app-shadow-api-prod-get` | `{clientId}` | Raw AWS IoT shadow (desired/reported/delta, per-field timestamps). **verified** |
 | `smartwater-app-shadow-api-prod-update` | `{clientId, payload}` | Commands **and** settings: every key in `payload` is written to the shadow. Returns `{"status": true}`. **verified** |
-| `smartwater-app-session-api-prod-get-v1` | `{clientId, limit, deviceType: "VAK", lastEvaluatedKey?}` | Water-use sessions, newest first, under `data`. **verified** |
+| `smartwater-app-session-api-prod-get-v1` | `{clientId, limit, deviceType: "VAK", lastEvaluatedKey?}` | Water-use sessions, newest first, under `data`; the response's `lastEvaluatedKey` pages further back. **verified** (paging: **code**) |
 | `smartwater-app-usage-api-prod-get-v1` | `{depth, devices: [clientId], queryDate (ms), timezoneOffset}` | Usage history. `depth` is daily/weekly/monthly/yearly. **code** |
 | `smartwater-app-preset-api-prod-list` / `-get` / `-create` / `-update` / `-delete` | varies; get/delete take `{presetId}` | Saved presets (stored server-side). **code** |
-| `smartwater-app-preset-api-prod-run` | `{clientId, presetId}` | Run a saved preset. **code** |
+| `smartwater-app-preset-api-prod-run` | `{clientId, presetId}` | Run a saved preset. Returns `{status, errorMessage}`. **code** |
 | `fbgpg_alerts_v1_acknowledge_alert_prod`, `fbgpg_alerts_v1_silence_alert_prod` | `{pathParameters: {duid, alertEventId}}` | Alerts. Lists come from `GET /v3/events` and `/v3/events/alerts`. **code** |
 
 ## Commands (`payload` of shadow-api update)
@@ -46,6 +46,10 @@ All carry `commandSrc: "app"` except `stop`.
 | `dispense_no_purge` | `volume`, `temperature`, `purge: false`, `wait: false` | Preset case 2a. **code** |
 | `preheat` | `temperature`, `purge: true` | Runs to temperature, stops, waits for a wave. **code** |
 | `stop` | `{command: "stop"}` | **verified** |
+
+**How runs end** is only partly known. A plain `run` with an unreachable target stopped
+at `purgeTimeout` (verified). Whether a `run` with `purge: false` stops at temperature,
+or only at the auto shut-off (`handleTimeout`, 60–900 s), is **not verified**.
 
 Volume limits in the app: 1 US tablespoon (14 787 µL) to 1 US gallon (3 785 412 µL).
 

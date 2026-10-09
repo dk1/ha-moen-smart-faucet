@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from homeassistant.components.button import ButtonEntity
+from homeassistant.components.button import DOMAIN as BUTTON_DOMAIN, ButtonEntity
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import MAX_DISPENSE_ML, MIN_DISPENSE_ML
+from .const import DOMAIN, MAX_DISPENSE_ML, MIN_DISPENSE_ML
 from .coordinator import MoenConfigEntry, MoenCoordinator, MoenPresetCoordinator
 from .entity import MoenEntity
 
@@ -26,21 +27,32 @@ async def async_setup_entry(
     )
 
     known: set[str] = set()
+    registry = er.async_get(hass)
 
     @callback
-    def _add_new_presets() -> None:
-        new = set(presets.data or {}) - known
-        if not new:
+    def _sync_presets() -> None:
+        if not presets.last_update_success:
             return
-        known.update(new)
-        async_add_entities(
-            MoenPresetButton(coordinator, presets, client_id, preset_id)
-            for client_id in coordinator.data
-            for preset_id in sorted(new)
-        )
+        current = set(presets.data or {})
+        # Presets deleted in the Moen app: remove their buttons.
+        for preset_id in known - current:
+            for client_id in coordinator.data:
+                if entity_id := registry.async_get_entity_id(
+                    BUTTON_DOMAIN, DOMAIN, f"{client_id}_preset_{preset_id}"
+                ):
+                    registry.async_remove(entity_id)
+        known.intersection_update(current)
+        new = current - known
+        if new:
+            known.update(new)
+            async_add_entities(
+                MoenPresetButton(coordinator, presets, client_id, preset_id)
+                for client_id in coordinator.data
+                for preset_id in sorted(new)
+            )
 
-    _add_new_presets()
-    entry.async_on_unload(presets.async_add_listener(_add_new_presets))
+    _sync_presets()
+    entry.async_on_unload(presets.async_add_listener(_sync_presets))
 
 
 class MoenDispenseButton(MoenEntity, ButtonEntity):
@@ -60,9 +72,8 @@ class MoenDispenseButton(MoenEntity, ButtonEntity):
             MAX_DISPENSE_ML,
         )
         volume_ul = round(amount_ml * 1000)
-        temperature = coordinator.clamp_run_temperature(
-            self.client_id, coordinator.run_temperatures[self.client_id]
-        )
+        temperature = coordinator.resolve_target(self.client_id, None)
+        coordinator.end_run(self.client_id)
         await self.async_send_command(
             coordinator.client.async_dispense(self.client_id, volume_ul, temperature)
         )
@@ -71,7 +82,8 @@ class MoenDispenseButton(MoenEntity, ButtonEntity):
 class MoenPresetButton(MoenEntity, ButtonEntity):
     """Run one of the account's saved Moen presets on this faucet.
 
-    A preset deleted in the Moen app leaves its button unavailable.
+    Presets added, renamed or deleted in the Moen app are picked up within
+    30 minutes; deleted presets' buttons are removed.
     """
 
     _attr_translation_key = "preset"
@@ -109,7 +121,7 @@ class MoenPresetButton(MoenEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Run the preset."""
-        self.coordinator.ha_runs.pop(self.client_id, None)
+        self.coordinator.end_run(self.client_id)
         await self.async_send_command(
             self.coordinator.client.async_run_preset(self.client_id, self._preset_id)
         )

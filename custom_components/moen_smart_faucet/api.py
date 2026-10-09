@@ -182,7 +182,9 @@ class MoenClient:
                 ) as resp:
                     if resp.status in (401, 403) and attempt == 0:
                         async with self._lock:
-                            await self._async_refresh()
+                            # Another call may already have refreshed it.
+                            if self._tokens and self._tokens.access_token == token:
+                                await self._async_refresh()
                         continue
                     if resp.status in (401, 403):
                         raise MoenAuthError(f"{fn} unauthorized (HTTP {resp.status})")
@@ -220,20 +222,43 @@ class MoenClient:
             raise MoenCommandError(f"Command not accepted: {data!r}")
 
     async def async_get_sessions(
-        self, client_id: str, limit: int = 10
-    ) -> list[dict[str, Any]]:
-        """Return the faucet's most recent water-use sessions, newest first.
+        self,
+        client_id: str,
+        limit: int = 10,
+        since: int | None = None,
+        max_pages: int = 10,
+    ) -> tuple[list[dict[str, Any]], bool]:
+        """Return the faucet's recent water-use sessions, newest first.
+
+        Without `since`, returns one page. With it, pages back (via
+        lastEvaluatedKey) until reaching a session at or before that Unix
+        timestamp. The second value is True when the history reached `since`
+        or its end, False if `max_pages` cut it short.
 
         Each session carries totalVolUl, durationMs, avgTempC, minTempC,
         maxTempC, targetTempC, source, sessionEndReason and a Unix timestamp.
         """
-        data = await self._async_invoke(
-            FN_SESSIONS, {"clientId": client_id, "limit": limit, "deviceType": "VAK"}
-        )
-        sessions = data.get("data") if isinstance(data, dict) else None
-        if not isinstance(sessions, list):
-            raise MoenConnectionError("Unexpected session response")
-        return sessions
+        sessions: list[dict[str, Any]] = []
+        key: Any = None
+        for _ in range(max_pages):
+            body: dict[str, Any] = {
+                "clientId": client_id,
+                "limit": limit,
+                "deviceType": "VAK",
+            }
+            if key is not None:
+                body["lastEvaluatedKey"] = key
+            data = await self._async_invoke(FN_SESSIONS, body)
+            page = data.get("data") if isinstance(data, dict) else None
+            if not isinstance(page, list):
+                raise MoenConnectionError("Unexpected session response")
+            sessions.extend(page)
+            key = data.get("lastEvaluatedKey")
+            if since is None:
+                return sessions, key is None
+            if not key or any(s.get("timestamp", 0) <= since for s in page):
+                return sessions, True
+        return sessions, False
 
     async def async_run(
         self,
@@ -297,9 +322,13 @@ class MoenClient:
 
     async def async_run_preset(self, client_id: str, preset_id: str) -> None:
         """Run a saved preset on a faucet, as the Moen app's preset buttons do."""
-        await self._async_invoke(
+        data = await self._async_invoke(
             FN_PRESET_RUN, {"clientId": client_id, "presetId": preset_id}
         )
+        # The app reads {status, errorMessage}.
+        if not (isinstance(data, dict) and data.get("status") is True):
+            message = data.get("errorMessage") if isinstance(data, dict) else None
+            raise MoenCommandError(f"Preset not run: {message or data!r}")
 
     async def async_set_freeze_protection(self, client_id: str, enabled: bool) -> None:
         """Turn freeze protection on or off.

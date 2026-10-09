@@ -207,7 +207,10 @@ async def test_sessions(
     """Sessions come back from the data key."""
     aioclient_mock.post(TOKEN_URL, json=TOKEN)
     aioclient_mock.post(INVOKER_URL, json={"data": [{"timestamp": 1}]})
-    assert await client(hass).async_get_sessions(FAUCET_ID, 5) == [{"timestamp": 1}]
+    assert await client(hass).async_get_sessions(FAUCET_ID, 5) == (
+        [{"timestamp": 1}],
+        True,
+    )
     body = aioclient_mock.mock_calls[-1][2]
     assert body == {
         "fn": "smartwater-app-session-api-prod-get-v1",
@@ -353,3 +356,42 @@ async def test_bad_expires_in_defaults(
     moen = client(hass)
     await moen.async_login()
     assert moen._tokens.access_token == "flat"
+
+
+async def test_run_preset_rejected(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Review #11: a preset run answered with status false is an error."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": False, "errorMessage": "offline"})
+    with pytest.raises(MoenCommandError, match="offline"):
+        await client(hass).async_run_preset(FAUCET_ID, "p1")
+
+
+async def test_sessions_paging(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Review #4: with `since`, pages back via lastEvaluatedKey until reaching it."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    pages = iter(
+        [
+            {
+                "data": [{"timestamp": 30}, {"timestamp": 25}],
+                "lastEvaluatedKey": {"k": 1},
+            },
+            {
+                "data": [{"timestamp": 20}, {"timestamp": 10}],
+                "lastEvaluatedKey": {"k": 2},
+            },
+        ]
+    )
+
+    async def respond(method, url, data):
+        return AiohttpClientMockResponse(method, url, json=next(pages))
+
+    aioclient_mock.post(INVOKER_URL, side_effect=respond)
+    sessions, complete = await client(hass).async_get_sessions(FAUCET_ID, 2, since=15)
+    assert [s["timestamp"] for s in sessions] == [30, 25, 20, 10]
+    assert complete
+    second = [c[2] for c in aioclient_mock.mock_calls if str(c[1]) == INVOKER_URL][1]
+    assert second["body"]["lastEvaluatedKey"] == {"k": 1}

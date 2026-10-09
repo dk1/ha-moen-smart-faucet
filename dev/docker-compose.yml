@@ -14,5 +14,5 @@ services:
       - ./config:/config
       - ../custom_components/moen_smart_faucet:/config/custom_components/moen_smart_faucet:ro
     environment:
-      - TZ=America/Toronto
+      - TZ=UTC
     restart: unless-stopped

@@ -258,6 +258,17 @@ class MoenWaterUsageSensor(MoenEntity, RestoreSensor):
             # First run: count from now on.
             self._last_session = max(stamps)
             return
+        covered = min(
+            stamps
+        ) <= self._last_session or self.coordinator.sessions_complete.get(
+            self.client_id, False
+        )
+        if not covered:
+            # More sessions happened than one page holds (e.g. Home Assistant
+            # was down): page back to the last counted one before adding any.
+            self.coordinator.request_sessions_since(self.client_id, self._last_session)
+            self.hass.async_create_task(self.coordinator.async_request_refresh())
+            return
         new = [
             s
             for s in sessions

@@ -16,6 +16,8 @@ PRESET_SCAN_INTERVAL = timedelta(minutes=30)
 COMMAND_REFRESH_DELAY = 3
 # How long a just-sent run counts as active before the faucet reports it.
 RUN_START_GRACE = 15
+# Polls to keep looking for a session Moen hasn't recorded yet.
+SESSION_RETRIES = 4
 
 STATE_RUNNING = "running"
 

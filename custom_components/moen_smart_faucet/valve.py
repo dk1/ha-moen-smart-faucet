@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable
+import time
 
 from homeassistant.components.valve import (
     ValveDeviceClass,
@@ -14,7 +15,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import MAX_DISPENSE_UL, MIN_DISPENSE_UL
-from .const import DOMAIN, START_ON_WAVE, STATE_RUNNING, UNIT_TO_UL
+from .const import DOMAIN, RUN_START_GRACE, START_ON_WAVE, STATE_RUNNING, UNIT_TO_UL
 from .coordinator import MoenConfigEntry
 from .entity import MoenEntity
 
@@ -36,9 +37,9 @@ async def async_setup_entry(
 class MoenFaucetValve(MoenEntity, ValveEntity):
     """The faucet's water flow.
 
-    Opening runs the water at the faucet's run temperature. The faucet decides
-    when to stop on its own (the Moen app describes it running until the water
-    reaches temperature); closing stops it immediately.
+    Opening runs the water at the faucet's run temperature and flow rate. The
+    faucet ends the run on its own timers (see docs/api.md: how a run with a
+    flow rate ends is not yet verified); closing stops it immediately.
     """
 
     _attr_device_class = ValveDeviceClass.WATER
@@ -51,6 +52,7 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         """Initialize the valve."""
         super().__init__(coordinator, client_id, "water")
         self._optimistic_closed: bool | None = None
+        self._optimistic_until = 0.0
 
     @property
     def is_closed(self) -> bool:
@@ -61,6 +63,16 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
+        # Keep showing what was just commanded until the faucet's report agrees,
+        # or it has had long enough to react.
+        reported_closed = self.device.get("state") != STATE_RUNNING
+        if (
+            self._optimistic_closed is not None
+            and self._optimistic_closed != reported_closed
+            and time.monotonic() < self._optimistic_until
+        ):
+            super()._handle_coordinator_update()
+            return
         self._optimistic_closed = None
         super()._handle_coordinator_update()
 
@@ -70,7 +82,7 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
 
     async def async_close_valve(self) -> None:
         """Stop the water."""
-        self.coordinator.ha_runs.pop(self.client_id, None)
+        self.coordinator.end_run(self.client_id)
         await self._async_send(self.coordinator.client.async_stop(self.client_id), True)
 
     async def async_run(
@@ -110,11 +122,13 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
             raise ServiceValidationError(
                 translation_domain=DOMAIN, translation_key="volume_out_of_range"
             )
-        target: float | str | None = preset
-        if temperature is not None:
-            target = self.coordinator.clamp_run_temperature(self.client_id, temperature)
+        target: float | str | None = None
+        if preset or temperature is not None:
+            target = self.coordinator.resolve_target(
+                self.client_id, preset or temperature
+            )
         wait = start == START_ON_WAVE
-        self.coordinator.ha_runs.pop(self.client_id, None)
+        self.coordinator.end_run(self.client_id)
         await self._async_send(
             self.coordinator.client.async_dispense(
                 self.client_id, volume_ul, target, wait_for_wave=wait
@@ -126,4 +140,5 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
     async def _async_send(self, command: Awaitable[None], closed: bool) -> None:
         await self.async_send_command(command)
         self._optimistic_closed = closed
+        self._optimistic_until = time.monotonic() + RUN_START_GRACE
         self.async_write_ha_state()

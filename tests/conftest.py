@@ -98,7 +98,7 @@ def mock_client() -> Generator[AsyncMock]:
         devices = load_devices()
         client.async_get_devices.return_value = devices
         client.async_get_faucets.return_value = faucets(devices)
-        client.async_get_sessions.return_value = load_sessions()
+        client.async_get_sessions.return_value = (load_sessions(), True)
         client.async_get_presets.return_value = load_presets()
         yield client
 
