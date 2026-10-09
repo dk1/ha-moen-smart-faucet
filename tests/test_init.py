@@ -309,7 +309,7 @@ async def test_flow_rate(
     [
         ({"volume": 500}, (500_000, None, False)),
         ({"volume": 1, "unit": "cup"}, (236_588, None, False)),
-        ({"volume": 2, "unit": "L", "temperature": 40}, (2_000_000, 40.0, False)),
+        ({"volume": 2, "unit": "l", "temperature": 40}, (2_000_000, 40.0, False)),
         (
             {"volume": 250, "preset": "coldest", "start": "on_wave"},
             (250_000, "coldest", True),

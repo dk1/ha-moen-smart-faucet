@@ -94,7 +94,7 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
     async def async_dispense(
         self,
         volume: float,
-        unit: str = "mL",
+        unit: str = "ml",
         temperature: float | None = None,
         preset: str | None = None,
         start: str = "now",

@@ -32,8 +32,8 @@ jobs:
           # Oldest supported release (hacs.json "homeassistant").
           - ha: "2026.9.2"
             harness: "0.13.365"
-            pytest-args: "--deselect tests/test_snapshots.py"
-          # Release the snapshots and coverage are pinned to.
+            pytest-args: ""
+          # Latest pinned release; coverage is measured here.
           - ha: "2026.10.0"
             harness: "0.13.371"
             pytest-args: "--cov=custom_components.moen_smart_faucet --cov-report=term-missing"

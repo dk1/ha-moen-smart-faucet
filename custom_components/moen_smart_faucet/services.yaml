@@ -41,13 +41,13 @@ dispense:
           step: any
           mode: box
     unit:
-      default: mL
+      default: ml
       selector:
         select:
           translation_key: unit
           options:
-            - mL
-            - L
+            - ml
+            - l
             - tbsp
             - fl_oz
             - cup

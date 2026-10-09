@@ -70,7 +70,7 @@ DISPENSE_SCHEMA = vol.All(
     cv.make_entity_service_schema(
         {
             vol.Required(ATTR_VOLUME): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            vol.Optional(ATTR_UNIT, default="mL"): vol.In(list(UNIT_TO_UL)),
+            vol.Optional(ATTR_UNIT, default="ml"): vol.In(list(UNIT_TO_UL)),
             vol.Optional(ATTR_TEMPERATURE): TEMPERATURE,
             vol.Optional(ATTR_PRESET): PRESET,
             vol.Optional(ATTR_START, default=START_NOW): vol.In(

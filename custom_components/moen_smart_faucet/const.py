@@ -44,8 +44,8 @@ START_ON_WAVE = "on_wave"
 
 # Microlitres per unit, as the Moen app converts them (US customary units).
 UNIT_TO_UL = {
-    "mL": 1_000,
-    "L": 1_000_000,
+    "ml": 1_000,
+    "l": 1_000_000,
     "tbsp": 14_786.765,
     "fl_oz": 29_573.53,
     "cup": 236_588.236,

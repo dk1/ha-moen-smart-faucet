@@ -92,7 +92,7 @@ data:
 
 Pours a measured amount of water, from 1 tablespoon to 1 gallon.
 
-- `volume` (required) and `unit`: `mL` (default), `L`, `tbsp`, `fl_oz`, `cup`, `pint`,
+- `volume` (required) and `unit`: `ml` (default), `l`, `tbsp`, `fl_oz`, `cup`, `pint`,
   `quart` or `gal` (US measures).
 - `temperature` or `preset`: optional. Without either, the faucet pours at its own
   default temperature.

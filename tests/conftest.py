@@ -10,6 +10,8 @@ from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.syrupy import HomeAssistantSnapshotExtension
+from syrupy.assertion import SnapshotAssertion
 
 from custom_components.moen_smart_faucet.const import DOMAIN
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
@@ -19,6 +21,16 @@ USERNAME = "user@example.com"
 PASSWORD = "hunter2"
 FAUCET_ID = "100000001"
 OFFLINE_FAUCET_ID = "100000002"
+
+
+@pytest.fixture
+def snapshot(snapshot: SnapshotAssertion) -> SnapshotAssertion:
+    """Use Home Assistant's snapshot format and tests/snapshots folder.
+
+    The test harness and syrupy both define `snapshot`; which wins depends on
+    plugin load order, so pin it here as Home Assistant core does.
+    """
+    return snapshot.use_extension(HomeAssistantSnapshotExtension)
 
 
 @pytest.fixture(autouse=True)

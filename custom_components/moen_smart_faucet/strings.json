@@ -158,8 +158,8 @@
     },
     "unit": {
       "options": {
-        "mL": "Millilitres",
-        "L": "Litres",
+        "ml": "Millilitres",
+        "l": "Litres",
         "tbsp": "Tablespoons",
         "fl_oz": "Fluid ounces",
         "cup": "Cups",
