@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable
-from typing import Any
 
 from homeassistant.components.valve import (
     ValveDeviceClass,
@@ -11,12 +10,11 @@ from homeassistant.components.valve import (
     ValveEntityFeature,
 )
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
-from homeassistant.helpers.event import async_call_later
 
-from .api import MoenError
-from .const import COMMAND_REFRESH_DELAY, DOMAIN, STATE_RUNNING
+from .api import MAX_DISPENSE_UL, MIN_DISPENSE_UL
+from .const import DOMAIN, START_ON_WAVE, STATE_RUNNING, UNIT_TO_UL
 from .coordinator import MoenConfigEntry
 from .entity import MoenEntity
 
@@ -75,9 +73,16 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         await self._async_send(self.coordinator.client.async_stop(self.client_id), True)
 
     async def async_run(
-        self, temperature: float | None = None, preset: str | None = None
+        self,
+        temperature: float | None = None,
+        preset: str | None = None,
+        flow_rate: int | None = None,
     ) -> None:
-        """Run the water at a temperature (°C) or a preset (hottest/coldest)."""
+        """Run the water at a temperature (°C) or preset, and a flow rate (%).
+
+        Anything not given comes from the faucet's run temperature and flow rate
+        settings.
+        """
         target: float | str
         if preset:
             target = preset
@@ -86,25 +91,44 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
                 self.client_id,
                 temperature or self.coordinator.run_temperatures[self.client_id],
             )
+        flow = flow_rate or self.coordinator.flow_rates[self.client_id]
         await self._async_send(
-            self.coordinator.client.async_run(self.client_id, target), False
+            self.coordinator.client.async_run(self.client_id, target, int(flow)),
+            False,
+        )
+
+    async def async_dispense(
+        self,
+        volume: float,
+        unit: str = "mL",
+        temperature: float | None = None,
+        preset: str | None = None,
+        start: str = "now",
+    ) -> None:
+        """Dispense a measured amount of water.
+
+        With no temperature or preset, the faucet pours at its own default
+        temperature. start="on_wave" gets the faucet ready and pours when someone
+        waves at its sensor.
+        """
+        volume_ul = round(volume * UNIT_TO_UL[unit])
+        if not MIN_DISPENSE_UL <= volume_ul <= MAX_DISPENSE_UL:
+            raise ServiceValidationError(
+                translation_domain=DOMAIN, translation_key="volume_out_of_range"
+            )
+        target: float | str | None = preset
+        if temperature is not None:
+            target = self.coordinator.clamp_run_temperature(self.client_id, temperature)
+        wait = start == START_ON_WAVE
+        await self._async_send(
+            self.coordinator.client.async_dispense(
+                self.client_id, volume_ul, target, wait_for_wave=wait
+            ),
+            # Pouring straight away opens the valve; waiting for a wave doesn't.
+            closed=wait,
         )
 
     async def _async_send(self, command: Awaitable[None], closed: bool) -> None:
-        try:
-            await command
-        except MoenError as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN,
-                translation_key="command_failed",
-                translation_placeholders={"error": str(err)},
-            ) from err
+        await self.async_send_command(command)
         self._optimistic_closed = closed
         self.async_write_ha_state()
-
-        async def _refresh(_: Any) -> None:
-            await self.coordinator.async_request_refresh()
-
-        self.async_on_remove(
-            async_call_later(self.hass, COMMAND_REFRESH_DELAY, _refresh)
-        )

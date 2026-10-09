@@ -42,6 +42,12 @@
     "number": {
       "run_temperature": {
         "name": "Run temperature"
+      },
+      "flow_rate": {
+        "name": "Flow rate"
+      },
+      "dispense_amount": {
+        "name": "Dispense amount"
       }
     },
     "sensor": {
@@ -50,11 +56,28 @@
       },
       "cabinet_temperature": {
         "name": "Cabinet temperature"
+      },
+      "last_use_volume": {
+        "name": "Last use volume"
+      },
+      "last_use_duration": {
+        "name": "Last use duration"
+      },
+      "last_use_temperature": {
+        "name": "Last use temperature"
+      },
+      "water_usage": {
+        "name": "Water usage"
       }
     },
     "valve": {
       "water": {
         "name": "Water"
+      }
+    },
+    "button": {
+      "dispense": {
+        "name": "Dispense"
       }
     }
   },
@@ -67,12 +90,15 @@
     },
     "command_failed": {
       "message": "The faucet command failed: {error}"
+    },
+    "volume_out_of_range": {
+      "message": "The faucet can dispense between 15 mL (1 tablespoon) and 3.785 L (1 gallon)."
     }
   },
   "services": {
     "run": {
       "name": "Run water",
-      "description": "Runs the faucet until the water reaches a temperature. Uses the faucet's run temperature if no temperature or preset is given.",
+      "description": "Runs the faucet until the water reaches a temperature. Uses the faucet's run temperature and flow rate settings for anything not given.",
       "fields": {
         "temperature": {
           "name": "Temperature",
@@ -81,6 +107,36 @@
         "preset": {
           "name": "Preset",
           "description": "Run at the hottest or coldest available water instead of a set temperature."
+        },
+        "flow_rate": {
+          "name": "Flow rate",
+          "description": "How hard the water runs, as a percentage of full flow."
+        }
+      }
+    },
+    "dispense": {
+      "name": "Dispense water",
+      "description": "Pours a measured amount of water, from 1 tablespoon to 1 gallon.",
+      "fields": {
+        "volume": {
+          "name": "Volume",
+          "description": "How much water to pour, in the chosen unit."
+        },
+        "unit": {
+          "name": "Unit",
+          "description": "Unit of the volume. Cups, ounces and gallons are US measures."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "Water temperature in °C. Without this or a preset, the faucet uses its default temperature."
+        },
+        "preset": {
+          "name": "Preset",
+          "description": "Pour the hottest or coldest available water instead of a set temperature."
+        },
+        "start": {
+          "name": "Start",
+          "description": "Pour straight away, or get ready and pour when someone waves at the faucet's sensor."
         }
       }
     }
@@ -90,6 +146,24 @@
       "options": {
         "hottest": "Hottest",
         "coldest": "Coldest"
+      }
+    },
+    "unit": {
+      "options": {
+        "mL": "Millilitres",
+        "L": "Litres",
+        "tbsp": "Tablespoons",
+        "fl_oz": "Fluid ounces",
+        "cup": "Cups",
+        "pint": "Pints",
+        "quart": "Quarts",
+        "gal": "Gallons"
+      }
+    },
+    "start": {
+      "options": {
+        "now": "Now",
+        "on_wave": "When I wave at the faucet"
       }
     }
   }

@@ -1,0 +1,4 @@
+[
+  {"clientId": "100000001", "timestamp": 1791546414, "totalVolUl": 100805, "durationMs": 1337, "avgTempC": 22.038, "minTempC": 20.787, "maxTempC": 23.351, "targetTempC": 38, "source": "app", "sessionEndReason": "complete"},
+  {"clientId": "100000001", "timestamp": 1791545678, "totalVolUl": 9449792, "durationMs": 120000, "avgTempC": 19.852, "minTempC": 19.018, "maxTempC": 26.246, "targetTempC": 5, "source": "app", "sessionEndReason": "complete"}
+]

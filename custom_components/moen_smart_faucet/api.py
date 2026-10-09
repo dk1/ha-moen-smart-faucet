@@ -38,11 +38,17 @@ USER_AGENT = "Smartwater-Android-prod-3.60.0.7869"
 FN_DEVICE_LIST = "smartwater-app-device-api-prod-list"
 FN_SHADOW_GET = "smartwater-app-shadow-api-prod-get"
 FN_SHADOW_UPDATE = "smartwater-app-shadow-api-prod-update"
+FN_SESSIONS = "smartwater-app-session-api-prod-get-v1"
 
 DEVICE_TYPE_FAUCET = "VAK"
 
 TEMPERATURE_HOTTEST = "hottest"
 TEMPERATURE_COLDEST = "coldest"
+
+# Limits the Moen app enforces for a measured amount, in microlitres
+# (1 US tablespoon to 1 US gallon).
+MIN_DISPENSE_UL = 14_787
+MAX_DISPENSE_UL = 3_785_412
 
 # Refresh this many seconds before the access token actually expires.
 _EXPIRY_MARGIN = 120
@@ -211,15 +217,73 @@ class MoenClient:
         if not (isinstance(data, dict) and data.get("status") is True):
             raise MoenCommandError(f"Command not accepted: {data!r}")
 
-    async def async_run(self, client_id: str, temperature: float | str) -> None:
-        """Start the water at a temperature in °C, or "hottest"/"coldest"."""
-        if not isinstance(temperature, str):
-            temperature = round(float(temperature), 1)
-        await self._async_command(
-            client_id,
-            {"command": "run", "commandSrc": "app", "temperature": temperature},
+    async def async_get_sessions(
+        self, client_id: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Return the faucet's most recent water-use sessions, newest first.
+
+        Each session carries totalVolUl, durationMs, avgTempC, minTempC,
+        maxTempC, targetTempC, source, sessionEndReason and a Unix timestamp.
+        """
+        data = await self._async_invoke(
+            FN_SESSIONS, {"clientId": client_id, "limit": limit, "deviceType": "VAK"}
         )
+        sessions = data.get("data") if isinstance(data, dict) else None
+        if not isinstance(sessions, list):
+            raise MoenConnectionError("Unexpected session response")
+        return sessions
+
+    async def async_run(
+        self,
+        client_id: str,
+        temperature: float | str,
+        flow_rate: int | None = None,
+    ) -> None:
+        """Start the water at a temperature in °C, or "hottest"/"coldest".
+
+        flow_rate is a percentage; the Moen app offers 30-100.
+        """
+        payload: dict[str, Any] = {
+            "command": "run",
+            "commandSrc": "app",
+            "temperature": _temperature(temperature),
+        }
+        if flow_rate is not None:
+            payload["flowRate"] = int(flow_rate)
+        await self._async_command(client_id, payload)
+
+    async def async_dispense(
+        self,
+        client_id: str,
+        volume_ul: int,
+        temperature: float | str | None = None,
+        wait_for_wave: bool = False,
+    ) -> None:
+        """Dispense a measured amount of water, in microlitres.
+
+        Mirrors the Moen app's presets: either pour straight away, or (with
+        wait_for_wave) get ready and pour when someone waves at the sensor. With
+        a temperature and wait_for_wave, the faucet first runs the water up to
+        temperature ("purge") and then waits.
+        """
+        if not MIN_DISPENSE_UL <= volume_ul <= MAX_DISPENSE_UL:
+            raise ValueError(f"Volume {volume_ul} µL is outside the faucet's range")
+        payload: dict[str, Any] = {
+            "command": "dispense" if wait_for_wave else "dispense_no_wait",
+            "commandSrc": "app",
+            "purge": wait_for_wave and temperature is not None,
+            "wait": wait_for_wave,
+            "volume": int(volume_ul),
+        }
+        if temperature is not None:
+            payload["temperature"] = _temperature(temperature)
+        await self._async_command(client_id, payload)
 
     async def async_stop(self, client_id: str) -> None:
         """Stop the water."""
         await self._async_command(client_id, {"command": "stop"})
+
+
+def _temperature(value: float | str) -> float | str:
+    """Return a command temperature: °C to one decimal, or a preset name."""
+    return value if isinstance(value, str) else round(float(value), 1)

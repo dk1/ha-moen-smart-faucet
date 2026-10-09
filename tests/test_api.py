@@ -134,3 +134,80 @@ async def test_command_rejected(
     aioclient_mock.post(INVOKER_URL, json={"status": False})
     with pytest.raises(MoenCommandError):
         await client(hass).async_stop(FAUCET_ID)
+
+
+async def test_run_with_flow_rate(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """FlowRate is only sent when given."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": True})
+    await client(hass).async_run(FAUCET_ID, 40, 60)
+    body = aioclient_mock.mock_calls[-1][2]["body"]
+    assert body["payload"] == {
+        "command": "run",
+        "commandSrc": "app",
+        "temperature": 40.0,
+        "flowRate": 60,
+    }
+
+
+@pytest.mark.parametrize(
+    ("temperature", "wait", "expected"),
+    [
+        (None, False, {"command": "dispense_no_wait", "purge": False, "wait": False}),
+        (None, True, {"command": "dispense", "purge": False, "wait": True}),
+        (
+            40,
+            False,
+            {
+                "command": "dispense_no_wait",
+                "purge": False,
+                "wait": False,
+                "temperature": 40.0,
+            },
+        ),
+        (
+            40,
+            True,
+            {"command": "dispense", "purge": True, "wait": True, "temperature": 40.0},
+        ),
+    ],
+)
+async def test_dispense_payloads(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    temperature: float | None,
+    wait: bool,
+    expected: dict,
+) -> None:
+    """Dispense mirrors the Moen app's preset payloads."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": True})
+    await client(hass).async_dispense(
+        FAUCET_ID, 250_000, temperature, wait_for_wave=wait
+    )
+    body = aioclient_mock.mock_calls[-1][2]["body"]
+    assert body["payload"] == {"commandSrc": "app", "volume": 250_000, **expected}
+
+
+async def test_dispense_range(hass: HomeAssistant) -> None:
+    """Volumes outside the app's limits are refused locally."""
+    with pytest.raises(ValueError):
+        await client(hass).async_dispense(FAUCET_ID, 1000)
+
+
+async def test_sessions(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Sessions come back from the data key."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"data": [{"timestamp": 1}]})
+    assert await client(hass).async_get_sessions(FAUCET_ID, 5) == [{"timestamp": 1}]
+    body = aioclient_mock.mock_calls[-1][2]
+    assert body == {
+        "fn": "smartwater-app-session-api-prod-get-v1",
+        "parse": True,
+        "escape": True,
+        "body": {"clientId": FAUCET_ID, "limit": 5, "deviceType": "VAK"},
+    }

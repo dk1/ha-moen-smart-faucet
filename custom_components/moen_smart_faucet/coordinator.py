@@ -50,8 +50,13 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             update_interval=SCAN_INTERVAL,
         )
         self.client = client
-        # Per-faucet run temperature (°C), owned by the number platform.
+        # Per-faucet settings kept in Home Assistant, owned by the number platform.
         self.run_temperatures: dict[str, float] = {}
+        self.flow_rates: dict[str, int] = {}
+        self.dispense_amounts_ml: dict[str, float] = {}
+        # Recent water-use sessions per faucet, newest first.
+        self.sessions: dict[str, list[dict[str, Any]]] = {}
+        self._session_markers: dict[str, tuple[Any, ...]] = {}
 
     def run_temperature_range(self, client_id: str) -> tuple[float, float]:
         """Return the allowed run temperatures (°C) for a faucet.
@@ -90,4 +95,25 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # quickly while any faucet is running to catch that moment.
         running = any(f.get("state") == STATE_RUNNING for f in faucets.values())
         self.update_interval = RUNNING_SCAN_INTERVAL if running else SCAN_INTERVAL
+        await self._async_update_sessions(faucets)
         return faucets
+
+    async def _async_update_sessions(self, faucets: dict[str, dict[str, Any]]) -> None:
+        """Fetch session history for faucets that finished a session.
+
+        The faucet's reported volume and temperatureLast describe its last
+        session, so a change in either means there is a new session to fetch.
+        Session history is a nice-to-have: a failure here doesn't fail the update.
+        """
+        for client_id, faucet in faucets.items():
+            marker = (faucet.get("volume"), faucet.get("temperatureLast"))
+            if self._session_markers.get(client_id) == marker:
+                continue
+            try:
+                self.sessions[client_id] = await self.client.async_get_sessions(
+                    client_id
+                )
+            except MoenError as err:
+                LOGGER.debug("Could not fetch sessions for %s: %s", client_id, err)
+                continue
+            self._session_markers[client_id] = marker

@@ -41,14 +41,22 @@ Each faucet gets:
 
 | Entity | Type | Notes |
 | --- | --- | --- |
-| Faucet (named after the device) | Valve | Open runs the water at the run temperature; close stops it. |
-| Run temperature | Number | The temperature used when the valve is opened: a slider in whole degrees. Stored in Home Assistant, not on the faucet. 5 °C up to the faucet's safety limit while safety mode is on (60 °C otherwise). Defaults to 38 °C. |
+| Faucet (named after the device) | Valve | Open runs the water at the run temperature and flow rate; close stops it. |
+| Run temperature | Number | Temperature used when the valve opens or the Dispense button is pressed: a slider in whole degrees from 5 °C to the faucet's safety limit. Defaults to 38 °C. |
+| Flow rate | Number | How hard the water runs when the valve opens: 30–100 %. Starts at the faucet's default flow rate. |
+| Dispense amount | Number | Amount poured by the Dispense button, in mL (15 mL to 3785 mL). Defaults to 250 mL. |
+| Dispense | Button | Pours the dispense amount at the run temperature, straight away. |
 | Water temperature | Sensor | Last reported outlet temperature. See [limitations](#limitations). |
 | Cabinet temperature | Sensor | Temperature of the under-sink control box. |
+| Water usage | Sensor | Litres through the faucet, counted session by session from when the integration was added. Suitable for the Energy dashboard's water section. |
+| Last use volume / duration / temperature | Sensors | Volume, length and average temperature of the most recent use, from Moen's session history. |
 | Battery | Sensor (diagnostic) | |
 | Signal strength | Sensor (diagnostic) | Wi-Fi RSSI. Disabled by default. |
 | Connectivity | Binary sensor (diagnostic) | Whether the faucet is connected to Moen's cloud. |
 | Freeze risk | Binary sensor | The faucet's own freezing flag. |
+
+Run temperature, flow rate and dispense amount are stored in Home Assistant, not on the
+faucet, and survive restarts.
 
 While a faucet is offline its entities are unavailable, except for connectivity and
 run temperature.
@@ -57,14 +65,17 @@ run temperature.
 
 ### `moen_smart_faucet.run`
 
-Runs the water on one or more faucet valves. Give at most one of:
+Runs the water on one or more faucet valves. Optional fields:
 
-- `temperature`: target temperature in °C (5–60).
-- `preset`: `hottest` or `coldest`.
+- `temperature`: target temperature in °C (5–60), or
+- `preset`: `hottest` or `coldest`;
+- `flow_rate`: 30–100 %.
 
-With neither, the faucet's run temperature is used. A temperature above the safety limit is pulled down to it. A target colder than your
-cold water supply can't be reached, and the faucet runs until it times out; use
-`preset: coldest` for the coldest water available right now.
+Anything not given comes from the faucet's run temperature and flow rate settings. A
+temperature above the safety limit is pulled down to it. A target colder than your cold
+water supply can't be reached: the faucet runs until its own time limit (2 minutes on the
+faucet this was developed with) and stops. Use `preset: coldest` for the coldest water
+available right now.
 
 ```yaml
 action: moen_smart_faucet.run
@@ -72,6 +83,28 @@ target:
   entity_id: valve.kitchen_faucet
 data:
   temperature: 40
+  flow_rate: 60
+```
+
+### `moen_smart_faucet.dispense`
+
+Pours a measured amount of water, from 1 tablespoon to 1 gallon.
+
+- `volume` (required) and `unit`: `mL` (default), `L`, `tbsp`, `fl_oz`, `cup`, `pint`,
+  `quart` or `gal` (US measures).
+- `temperature` or `preset`: optional. Without either, the faucet pours at its own
+  default temperature.
+- `start`: `now` (default), or `on_wave` to have the faucet get ready (running up to
+  temperature first, if one is given) and pour when someone waves at its sensor.
+
+```yaml
+action: moen_smart_faucet.dispense
+target:
+  entity_id: valve.kitchen_faucet
+data:
+  volume: 2
+  unit: cup
+  temperature: 45
 ```
 
 To stop the water, use `valve.close_valve`.
@@ -84,8 +117,8 @@ To stop the water, use `valve.close_valve`.
   temperature only when a run ends (the Moen app has the same limitation). The
   integration polls every 5 seconds while a faucet is running, instead of every 30, so
   the reading updates within a few seconds of the water stopping.
-- **Dispensing a measured volume, presets and faucet settings** (safety limit, child
-  mode, timeouts) are not supported yet.
+- **Saved presets from the Moen app and faucet settings** (safety limit, child mode,
+  timeouts, gesture mode) are not supported yet.
 - Tested with one faucet, Moen app version 3.60.0, and Home Assistant 2026.9 and
   2026.10.
 

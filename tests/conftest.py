@@ -31,6 +31,13 @@ def load_devices() -> list[dict[str, Any]]:
     return json.loads((Path(__file__).parent / "fixtures" / "devices.json").read_text())
 
 
+def load_sessions() -> list[dict[str, Any]]:
+    """Return the session history fixture (newest first)."""
+    return json.loads(
+        (Path(__file__).parent / "fixtures" / "sessions.json").read_text()
+    )
+
+
 def faucets(devices: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Filter a device list the way the client does."""
     return {d["clientId"]: d for d in devices if d["deviceType"] == "VAK"}
@@ -63,6 +70,7 @@ def mock_client() -> Generator[AsyncMock]:
         devices = load_devices()
         client.async_get_devices.return_value = devices
         client.async_get_faucets.return_value = faucets(devices)
+        client.async_get_sessions.return_value = load_sessions()
         yield client
 
 

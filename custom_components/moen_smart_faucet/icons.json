@@ -12,6 +12,12 @@
     "number": {
       "run_temperature": {
         "default": "mdi:thermometer-water"
+      },
+      "flow_rate": {
+        "default": "mdi:waves-arrow-right"
+      },
+      "dispense_amount": {
+        "default": "mdi:cup-water"
       }
     },
     "binary_sensor": {
@@ -28,12 +34,32 @@
       },
       "water_temperature": {
         "default": "mdi:thermometer-water"
+      },
+      "last_use_volume": {
+        "default": "mdi:water"
+      },
+      "last_use_duration": {
+        "default": "mdi:timer-outline"
+      },
+      "last_use_temperature": {
+        "default": "mdi:thermometer-water"
+      },
+      "water_usage": {
+        "default": "mdi:water-pump"
+      }
+    },
+    "button": {
+      "dispense": {
+        "default": "mdi:cup-water"
       }
     }
   },
   "services": {
     "run": {
       "service": "mdi:faucet"
+    },
+    "dispense": {
+      "service": "mdi:cup-water"
     }
   }
 }

@@ -32,10 +32,10 @@ from homeassistant.components.valve import (
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, STATE_OFF, STATE_ON, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
-from .conftest import FAUCET_ID, OFFLINE_FAUCET_ID, faucets, load_devices
+from .conftest import FAUCET_ID, OFFLINE_FAUCET_ID, faucets, load_devices, load_sessions
 
 VALVE = "valve.kitchen_faucet"
 RUN_TEMP = "number.kitchen_faucet_run_temperature"
@@ -130,7 +130,7 @@ async def test_open_close(
     await hass.services.async_call(
         VALVE_DOMAIN, SERVICE_OPEN_VALVE, {ATTR_ENTITY_ID: VALVE}, blocking=True
     )
-    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, 41.0)
+    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, 41.0, 100)
     assert hass.states.get(VALVE).state == "open"
 
     devices = load_devices()
@@ -167,7 +167,7 @@ async def test_run_action(
     await hass.services.async_call(
         DOMAIN, "run", {ATTR_ENTITY_ID: VALVE, **data}, blocking=True
     )
-    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, expected)
+    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, expected, 100)
 
 
 async def test_run_action_rejects_both(
@@ -266,7 +266,7 @@ async def test_run_temperature_clamped(
     await hass.services.async_call(
         DOMAIN, "run", {ATTR_ENTITY_ID: VALVE, **service_data}, blocking=True
     )
-    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, expected)
+    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, expected, 100)
 
 
 async def test_range_without_safety_limit(
@@ -276,3 +276,154 @@ async def test_range_without_safety_limit(
     state = hass.states.get("number.old_faucet_run_temperature")
     assert state.attributes["min"] == 5
     assert state.attributes["max"] == 60
+
+
+async def test_flow_rate(
+    hass: HomeAssistant, init_integration: MockConfigEntry, mock_client: AsyncMock
+) -> None:
+    """Opening uses the flow rate setting; the run action can override it."""
+    flow = "number.kitchen_faucet_flow_rate"
+    state = hass.states.get(flow)
+    assert state.state == "100.0"
+    assert (state.attributes["min"], state.attributes["max"]) == (30, 100)
+
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: flow, ATTR_VALUE: 49},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        VALVE_DOMAIN, SERVICE_OPEN_VALVE, {ATTR_ENTITY_ID: VALVE}, blocking=True
+    )
+    mock_client.async_run.assert_awaited_with(FAUCET_ID, 38.0, 49)
+
+    await hass.services.async_call(
+        DOMAIN, "run", {ATTR_ENTITY_ID: VALVE, "flow_rate": 70}, blocking=True
+    )
+    mock_client.async_run.assert_awaited_with(FAUCET_ID, 38.0, 70)
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        ({"volume": 500}, (500_000, None, False)),
+        ({"volume": 1, "unit": "cup"}, (236_588, None, False)),
+        ({"volume": 2, "unit": "L", "temperature": 40}, (2_000_000, 40.0, False)),
+        (
+            {"volume": 250, "preset": "coldest", "start": "on_wave"},
+            (250_000, "coldest", True),
+        ),
+    ],
+)
+async def test_dispense_action(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    data: dict,
+    expected: tuple,
+) -> None:
+    """The dispense action converts units and passes temperature and start mode."""
+    volume_ul, target, wait = expected
+    await hass.services.async_call(
+        DOMAIN, "dispense", {ATTR_ENTITY_ID: VALVE, **data}, blocking=True
+    )
+    mock_client.async_dispense.assert_awaited_once_with(
+        FAUCET_ID, volume_ul, target, wait_for_wave=wait
+    )
+    # Pouring now shows the water running; waiting for a wave doesn't.
+    assert hass.states.get(VALVE).state == ("closed" if wait else "open")
+
+
+@pytest.mark.parametrize("volume", [5, 4000])
+async def test_dispense_out_of_range(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    volume: float,
+) -> None:
+    """Amounts outside 1 tablespoon to 1 gallon are rejected before sending."""
+    with pytest.raises(ServiceValidationError) as err:
+        await hass.services.async_call(
+            DOMAIN, "dispense", {ATTR_ENTITY_ID: VALVE, "volume": volume}, blocking=True
+        )
+    assert err.value.translation_key == "volume_out_of_range"
+    mock_client.async_dispense.assert_not_awaited()
+
+
+async def test_dispense_button(
+    hass: HomeAssistant, init_integration: MockConfigEntry, mock_client: AsyncMock
+) -> None:
+    """The button pours the dispense amount at the run temperature, now."""
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: "number.kitchen_faucet_dispense_amount", ATTR_VALUE: 750},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "button",
+        "press",
+        {ATTR_ENTITY_ID: "button.kitchen_faucet_dispense"},
+        blocking=True,
+    )
+    mock_client.async_dispense.assert_awaited_once_with(FAUCET_ID, 750_000, 38.0)
+
+
+async def test_session_sensors(
+    hass: HomeAssistant, init_integration: MockConfigEntry
+) -> None:
+    """Last-use sensors come from the newest session."""
+    assert float(
+        hass.states.get("sensor.kitchen_faucet_last_use_volume").state
+    ) == pytest.approx(0.100805)
+    assert hass.states.get("sensor.kitchen_faucet_last_use_duration").state == "1.337"
+    assert (
+        hass.states.get("sensor.kitchen_faucet_last_use_temperature").state == "22.038"
+    )
+    # The water total starts at zero rather than backfilling history.
+    assert hass.states.get("sensor.kitchen_faucet_water_usage").state == "0.0"
+
+
+async def test_water_usage_counts_new_sessions_once(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """A new session is fetched when the faucet's last-session fields change."""
+    sessions = load_sessions()
+    new = {
+        **sessions[0],
+        "timestamp": sessions[0]["timestamp"] + 60,
+        "totalVolUl": 1_500_000,
+    }
+    mock_client.async_get_sessions.return_value = [new, *sessions]
+    devices = load_devices()
+    devices[0]["volume"] = 1_500_000
+    mock_client.async_get_faucets.return_value = faucets(devices)
+
+    for _ in range(2):  # the second poll changes nothing and must not double-count
+        freezer.tick(timedelta(seconds=31))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    assert hass.states.get("sensor.kitchen_faucet_water_usage").state == "1.5"
+    assert float(hass.states.get("sensor.kitchen_faucet_last_use_volume").state) == 1.5
+
+
+async def test_session_fetch_failure_is_not_fatal(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """If session history fails, the faucet itself stays available."""
+    mock_client.async_get_sessions.side_effect = MoenConnectionError
+    devices = load_devices()
+    devices[0]["volume"] = 42
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get(VALVE).state == "closed"
