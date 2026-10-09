@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Moen Smart Faucet (unofficial)</title>
+  <rect x="0" y="0" width="256" height="256" rx="56" fill="#0B6E99"/>
+  <path d="M84 150 V104 A50 50 0 0 1 184 104 V116" fill="none" stroke="#FFFFFF" stroke-width="22" stroke-linecap="round"/>
+  <rect x="170" y="108" width="28" height="26" rx="8" fill="#FFFFFF"/>
+  <rect x="73" y="132" width="22" height="70" fill="#FFFFFF"/>
+  <rect x="52" y="196" width="64" height="20" rx="8" fill="#FFFFFF"/>
+  <path d="M184 148 C184 148 162 176 162 190 A22 22 0 0 0 206 190 C206 176 184 148 184 148 Z" fill="#7DD3FC"/>
+</svg>
