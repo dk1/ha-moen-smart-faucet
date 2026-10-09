@@ -1,0 +1,18 @@
+# Local Home Assistant for developing this integration, so the real house
+# instance never has to restart for code changes.
+#   docker compose -f dev/docker-compose.yml up -d     # start (http://localhost:8124)
+#   docker compose -f dev/docker-compose.yml restart   # load code changes
+#   docker compose -f dev/docker-compose.yml logs -f   # watch the log
+services:
+  homeassistant:
+    container_name: ha-moen-dev
+    # Match the production instance's version before releasing.
+    image: ghcr.io/home-assistant/home-assistant:2026.9.2
+    ports:
+      - "8124:8123"
+    volumes:
+      - ./config:/config
+      - ../custom_components/moen_smart_faucet:/config/custom_components/moen_smart_faucet:ro
+    environment:
+      - TZ=America/Toronto
+    restart: unless-stopped

@@ -105,6 +105,15 @@ python3.14 -m venv .venv
 
 The API client in `api.py` has no Home Assistant dependencies.
 
+To try changes in a real Home Assistant without touching your main instance, run the
+dev instance in Docker. The integration folder is mounted read-only, so a container
+restart picks up code changes:
+
+```bash
+docker compose -f dev/docker-compose.yml up -d        # http://localhost:8124
+docker compose -f dev/docker-compose.yml restart      # after editing code
+```
+
 ## Credits
 
 Login handling follows the approach of the Flo by Moen integrations, which use the

@@ -1,0 +1,6 @@
+default_config:
+
+logger:
+  default: warning
+  logs:
+    custom_components.moen_smart_faucet: debug

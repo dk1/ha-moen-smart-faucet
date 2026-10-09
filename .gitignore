@@ -10,3 +10,7 @@ htmlcov/
 *.token*
 .moen_tokens.json
 captures/
+
+# Local dev Home Assistant state (accounts, tokens, database)
+dev/config/*
+!dev/config/configuration.yaml
