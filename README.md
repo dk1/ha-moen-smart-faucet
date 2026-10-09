@@ -42,7 +42,7 @@ Each faucet gets:
 | Entity | Type | Notes |
 | --- | --- | --- |
 | Faucet (named after the device) | Valve | Open runs the water at the run temperature; close stops it. |
-| Run temperature | Number (config) | The temperature used when the valve is opened: a slider in whole degrees. Stored in Home Assistant, not on the faucet. Capped at the faucet's safety limit while safety mode is on. Defaults to 38 °C. |
+| Run temperature | Number (config) | The temperature used when the valve is opened: a slider in whole degrees. Stored in Home Assistant, not on the faucet. The range follows the coldest and hottest water the faucet has learned (it reports these itself, so it widens as the seasons change), capped at the safety limit while safety mode is on. Defaults to 38 °C. |
 | Water temperature | Sensor | Last reported outlet temperature. See [limitations](#limitations). |
 | Cabinet temperature | Sensor | Temperature of the under-sink control box. |
 | Battery | Sensor (diagnostic) | |
@@ -62,7 +62,9 @@ Runs the water on one or more faucet valves. Give at most one of:
 - `temperature`: target temperature in °C (5–60).
 - `preset`: `hottest` or `coldest`.
 
-With neither, the faucet's run temperature is used.
+With neither, the faucet's run temperature is used. A temperature outside what the faucet can deliver is
+pulled into its range, since the faucet would otherwise run until it times out chasing it. Use
+`preset: coldest` for the coldest water available right now.
 
 ```yaml
 action: moen_smart_faucet.run

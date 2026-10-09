@@ -25,7 +25,9 @@
     "powerSource": "battery",
     "volume": 2220039,
     "temperature": 35.867001,
-    "temperatureGoal": "specific"
+    "temperatureGoal": "specific",
+    "learnedMinTemp": 13.638,
+    "learnedMaxTemp": 54.037998
   },
   {
     "duid": "00000000-0000-4000-8000-000000000002",

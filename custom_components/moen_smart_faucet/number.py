@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import math
-
 from homeassistant.components.number import (
     NumberDeviceClass,
     NumberMode,
@@ -13,7 +11,7 @@ from homeassistant.const import EntityCategory, UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DEFAULT_RUN_TEMPERATURE, MAX_RUN_TEMPERATURE, MIN_RUN_TEMPERATURE
+from .const import DEFAULT_RUN_TEMPERATURE
 from .coordinator import MoenConfigEntry
 from .entity import MoenEntity
 
@@ -35,8 +33,8 @@ async def async_setup_entry(
 class MoenRunTemperature(MoenEntity, RestoreNumber):
     """Temperature the faucet runs to when its valve is opened.
 
-    Stored in Home Assistant, not on the faucet. It is capped at the faucet's
-    safety limit while safety mode is on.
+    Stored in Home Assistant, not on the faucet. The range follows what the
+    faucet can deliver; see MoenCoordinator.run_temperature_range.
     """
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
@@ -62,22 +60,20 @@ class MoenRunTemperature(MoenEntity, RestoreNumber):
 
     @property
     def native_min_value(self) -> float:
-        """Return the minimum run temperature."""
-        return MIN_RUN_TEMPERATURE
+        """Return the coldest temperature the faucet can deliver."""
+        return self.coordinator.run_temperature_range(self.client_id)[0]
 
     @property
     def native_max_value(self) -> float:
-        """Return the maximum run temperature, honouring the safety limit."""
-        limit = self.device.get("safetyLimitTemp")
-        if self.device.get("safetyModeEnabled") and isinstance(limit, (int, float)):
-            # Whole degrees keep the slider tidy; never round up past the limit.
-            return min(float(math.floor(limit)), MAX_RUN_TEMPERATURE)
-        return MAX_RUN_TEMPERATURE
+        """Return the hottest temperature the faucet may deliver."""
+        return self.coordinator.run_temperature_range(self.client_id)[1]
 
     @property
     def native_value(self) -> float:
         """Return the run temperature."""
-        return self.coordinator.run_temperatures[self.client_id]
+        return self.coordinator.clamp_run_temperature(
+            self.client_id, self.coordinator.run_temperatures[self.client_id]
+        )
 
     async def async_set_native_value(self, value: float) -> None:
         """Set the run temperature."""

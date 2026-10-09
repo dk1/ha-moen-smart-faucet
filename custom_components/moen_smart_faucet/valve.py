@@ -78,9 +78,14 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         self, temperature: float | None = None, preset: str | None = None
     ) -> None:
         """Run the water at a temperature (°C) or a preset (hottest/coldest)."""
-        target: float | str = (
-            preset or temperature or self.coordinator.run_temperatures[self.client_id]
-        )
+        target: float | str
+        if preset:
+            target = preset
+        else:
+            target = self.coordinator.clamp_run_temperature(
+                self.client_id,
+                temperature or self.coordinator.run_temperatures[self.client_id],
+            )
         await self._async_send(
             self.coordinator.client.async_run(self.client_id, target), False
         )
