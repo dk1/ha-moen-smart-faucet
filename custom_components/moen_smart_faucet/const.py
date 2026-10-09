@@ -13,6 +13,8 @@ SCAN_INTERVAL = timedelta(seconds=30)
 RUNNING_SCAN_INTERVAL = timedelta(seconds=5)
 # The faucet reflects a command in its shadow within a few seconds.
 COMMAND_REFRESH_DELAY = 3
+# How long a just-sent run counts as active before the faucet reports it.
+RUN_START_GRACE = 15
 
 STATE_RUNNING = "running"
 

@@ -42,6 +42,8 @@ class MoenNumberDescription(NumberEntityDescription):
     default: Callable[[MoenCoordinator, str], float]
     # (min, max) for this faucet; static unless the faucet constrains it.
     limits: Callable[[MoenCoordinator, str], tuple[float, float]]
+    # Re-send `run` when changed during a run Home Assistant started.
+    adjusts_run: bool = False
 
 
 def _default_flow_rate(coordinator: MoenCoordinator, client_id: str) -> float:
@@ -62,6 +64,7 @@ NUMBERS: tuple[MoenNumberDescription, ...] = (
         store=lambda c: c.run_temperatures,
         default=lambda c, _: DEFAULT_RUN_TEMPERATURE,
         limits=lambda c, client_id: c.run_temperature_range(client_id),
+        adjusts_run=True,
     ),
     MoenNumberDescription(
         key="flow_rate",
@@ -72,6 +75,7 @@ NUMBERS: tuple[MoenNumberDescription, ...] = (
         store=lambda c: c.flow_rates,
         default=_default_flow_rate,
         limits=lambda c, _: (MIN_FLOW_RATE, MAX_FLOW_RATE),
+        adjusts_run=True,
     ),
     MoenNumberDescription(
         key="dispense_amount",
@@ -149,6 +153,11 @@ class MoenNumber(MoenEntity, RestoreNumber):
         )
 
     async def async_set_native_value(self, value: float) -> None:
-        """Store a new value."""
+        """Store a new value, and apply it to a run Home Assistant started."""
         self._store[self.client_id] = value
         self.async_write_ha_state()
+        if (
+            self.entity_description.adjusts_run
+            and self.client_id in self.coordinator.ha_runs
+        ):
+            await self.async_send_command(self.coordinator.async_run(self.client_id))

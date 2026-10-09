@@ -427,3 +427,87 @@ async def test_session_fetch_failure_is_not_fatal(
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert hass.states.get(VALVE).state == "closed"
+
+
+async def test_live_adjust_during_ha_run(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Changing flow or temperature re-sends run only while HA's run is going."""
+    flow = "number.kitchen_faucet_flow_rate"
+
+    # Not running: just stored.
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: flow, ATTR_VALUE: 60},
+        blocking=True,
+    )
+    mock_client.async_run.assert_not_awaited()
+
+    await hass.services.async_call(
+        VALVE_DOMAIN, SERVICE_OPEN_VALVE, {ATTR_ENTITY_ID: VALVE}, blocking=True
+    )
+    mock_client.async_run.assert_awaited_once_with(FAUCET_ID, 38.0, 60)
+
+    # Still running on the next poll.
+    devices = load_devices()
+    devices[0]["state"] = "running"
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: flow, ATTR_VALUE: 40},
+        blocking=True,
+    )
+    mock_client.async_run.assert_awaited_with(FAUCET_ID, 38.0, 40)
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: RUN_TEMP, ATTR_VALUE: 30},
+        blocking=True,
+    )
+    mock_client.async_run.assert_awaited_with(FAUCET_ID, 30.0, 40)
+    assert mock_client.async_run.await_count == 3
+
+    # Once the faucet goes idle, changes are stored only.
+    devices[0]["state"] = "idle"
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: flow, ATTR_VALUE: 70},
+        blocking=True,
+    )
+    assert mock_client.async_run.await_count == 3
+
+
+async def test_no_live_adjust_for_handle_runs(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """A run started at the faucet itself isn't taken over by the sliders."""
+    devices = load_devices()
+    devices[0]["state"] = "running"
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    await hass.services.async_call(
+        NUMBER_DOMAIN,
+        SERVICE_SET_VALUE,
+        {ATTR_ENTITY_ID: "number.kitchen_faucet_flow_rate", ATTR_VALUE: 40},
+        blocking=True,
+    )
+    mock_client.async_run.assert_not_awaited()

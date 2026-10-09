@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -17,6 +18,7 @@ from .const import (
     LOGGER,
     MAX_RUN_TEMPERATURE,
     MIN_RUN_TEMPERATURE,
+    RUN_START_GRACE,
     RUNNING_SCAN_INTERVAL,
     SCAN_INTERVAL,
     STATE_RUNNING,
@@ -54,6 +56,10 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.run_temperatures: dict[str, float] = {}
         self.flow_rates: dict[str, int] = {}
         self.dispense_amounts_ml: dict[str, float] = {}
+        # Faucets currently running a `run` that Home Assistant started, so that
+        # changing the flow rate or run temperature can adjust it live.
+        # Maps client ID to when the run was sent (monotonic seconds).
+        self.ha_runs: dict[str, float] = {}
         # Recent water-use sessions per faucet, newest first.
         self.sessions: dict[str, list[dict[str, Any]]] = {}
         self._session_markers: dict[str, tuple[Any, ...]] = {}
@@ -78,6 +84,25 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         low, high = self.run_temperature_range(client_id)
         return min(max(value, low), high)
 
+    async def async_run(
+        self,
+        client_id: str,
+        temperature: float | str | None = None,
+        flow_rate: int | None = None,
+    ) -> None:
+        """Run the water, filling in anything not given from the settings."""
+        target: float | str = (
+            temperature
+            if isinstance(temperature, str)
+            else self.clamp_run_temperature(
+                client_id, temperature or self.run_temperatures[client_id]
+            )
+        )
+        flow = int(flow_rate or self.flow_rates[client_id])
+        await self.client.async_run(client_id, target, flow)
+        # Keep the original start time when adjusting a run already going.
+        self.ha_runs.setdefault(client_id, time.monotonic())
+
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         try:
             faucets = await self.client.async_get_faucets()
@@ -94,6 +119,15 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # The faucet reports its temperature only when a run ends, so poll
         # quickly while any faucet is running to catch that moment.
         running = any(f.get("state") == STATE_RUNNING for f in faucets.values())
+        # Forget runs that have ended, allowing the faucet a few seconds to
+        # report that a just-sent run has started.
+        now = time.monotonic()
+        self.ha_runs = {
+            cid: sent
+            for cid, sent in self.ha_runs.items()
+            if faucets.get(cid, {}).get("state") == STATE_RUNNING
+            or now - sent < RUN_START_GRACE
+        }
         self.update_interval = RUNNING_SCAN_INTERVAL if running else SCAN_INTERVAL
         await self._async_update_sessions(faucets)
         return faucets

@@ -70,6 +70,7 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
 
     async def async_close_valve(self) -> None:
         """Stop the water."""
+        self.coordinator.ha_runs.pop(self.client_id, None)
         await self._async_send(self.coordinator.client.async_stop(self.client_id), True)
 
     async def async_run(
@@ -83,17 +84,10 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         Anything not given comes from the faucet's run temperature and flow rate
         settings.
         """
-        target: float | str
-        if preset:
-            target = preset
-        else:
-            target = self.coordinator.clamp_run_temperature(
-                self.client_id,
-                temperature or self.coordinator.run_temperatures[self.client_id],
-            )
-        flow = flow_rate or self.coordinator.flow_rates[self.client_id]
         await self._async_send(
-            self.coordinator.client.async_run(self.client_id, target, int(flow)),
+            self.coordinator.async_run(
+                self.client_id, preset or temperature, flow_rate
+            ),
             False,
         )
 
@@ -120,6 +114,7 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         if temperature is not None:
             target = self.coordinator.clamp_run_temperature(self.client_id, temperature)
         wait = start == START_ON_WAVE
+        self.coordinator.ha_runs.pop(self.client_id, None)
         await self._async_send(
             self.coordinator.client.async_dispense(
                 self.client_id, volume_ul, target, wait_for_wave=wait
