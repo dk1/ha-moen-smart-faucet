@@ -7,7 +7,7 @@ from homeassistant.components.number import (
     NumberMode,
     RestoreNumber,
 )
-from homeassistant.const import EntityCategory, UnitOfTemperature
+from homeassistant.const import UnitOfTemperature
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -38,7 +38,6 @@ class MoenRunTemperature(MoenEntity, RestoreNumber):
     """
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_mode = NumberMode.SLIDER
     _attr_native_step = 1
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS

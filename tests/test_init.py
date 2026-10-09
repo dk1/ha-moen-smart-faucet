@@ -62,7 +62,7 @@ async def test_setup_and_entities(
         hass.states.get("binary_sensor.kitchen_faucet_freeze_risk").state == STATE_OFF
     )
     assert hass.states.get(RUN_TEMP).state == "38.0"
-    assert hass.states.get(RUN_TEMP).attributes["min"] == 14
+    assert hass.states.get(RUN_TEMP).attributes["min"] == 5
     assert hass.states.get(RUN_TEMP).attributes["max"] == 48
     assert hass.states.get(RUN_TEMP).attributes["mode"] == "slider"
     assert hass.states.get(RUN_TEMP).attributes["step"] == 1
@@ -246,7 +246,7 @@ async def test_fast_polling_while_running(
 @pytest.mark.parametrize(
     ("run_temperature", "service_data", "expected"),
     [
-        (5, {}, 14.0),  # below the coldest water the faucet has learned
+        (5, {}, 5.0),  # learnedMinTemp is not a floor
         (38, {"temperature": 55}, 48.0),  # above the safety limit
         (38, {"temperature": 20}, 20.0),
     ],
@@ -259,7 +259,7 @@ async def test_run_temperature_clamped(
     service_data: dict,
     expected: float,
 ) -> None:
-    """Targets the faucet can't reach are pulled into its range."""
+    """Targets above the safety limit are pulled down to it."""
     init_integration.runtime_data.coordinator.run_temperatures[FAUCET_ID] = (
         run_temperature
     )
@@ -269,10 +269,10 @@ async def test_run_temperature_clamped(
     mock_client.async_run.assert_awaited_once_with(FAUCET_ID, expected)
 
 
-async def test_range_without_learned_limits(
+async def test_range_without_safety_limit(
     hass: HomeAssistant, init_integration: MockConfigEntry
 ) -> None:
-    """A faucet that reports no limits falls back to the wide default range."""
+    """Without safety mode the range is 5-60 °C."""
     state = hass.states.get("number.old_faucet_run_temperature")
     assert state.attributes["min"] == 5
     assert state.attributes["max"] == 60

@@ -54,25 +54,19 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.run_temperatures: dict[str, float] = {}
 
     def run_temperature_range(self, client_id: str) -> tuple[float, float]:
-        """Return the run temperatures (°C) this faucet can actually deliver.
+        """Return the allowed run temperatures (°C) for a faucet.
 
-        Bounded by the coldest and hottest water the faucet has learned, and by
-        its safety limit while safety mode is on, in whole degrees inside those
-        bounds. A target outside this range is never reached, so the faucet
-        runs until it times out.
+        The top is the faucet's safety limit (whole degrees, rounded down) while
+        safety mode is on. The faucet's learnedMinTemp/learnedMaxTemp are not
+        used: learnedMinTemp rises after short runs of room-temperature pipe
+        water, so it isn't a reliable floor.
         """
         device = self.data.get(client_id, {}) if self.data else {}
-        low, high = MIN_RUN_TEMPERATURE, MAX_RUN_TEMPERATURE
-        if isinstance(learned := device.get("learnedMinTemp"), (int, float)):
-            low = max(low, float(math.ceil(learned)))
-        if isinstance(learned := device.get("learnedMaxTemp"), (int, float)):
-            high = min(high, float(math.floor(learned)))
+        high = MAX_RUN_TEMPERATURE
         limit = device.get("safetyLimitTemp")
         if device.get("safetyModeEnabled") and isinstance(limit, (int, float)):
             high = min(high, float(math.floor(limit)))
-        return (
-            (low, high) if low <= high else (MIN_RUN_TEMPERATURE, MAX_RUN_TEMPERATURE)
-        )
+        return MIN_RUN_TEMPERATURE, high
 
     def clamp_run_temperature(self, client_id: str, value: float) -> float:
         """Limit a run temperature to what the faucet can deliver."""
