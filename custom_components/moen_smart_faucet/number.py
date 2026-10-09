@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from homeassistant.components.number import (
     NumberDeviceClass,
     NumberMode,
@@ -39,8 +41,8 @@ class MoenRunTemperature(MoenEntity, RestoreNumber):
 
     _attr_device_class = NumberDeviceClass.TEMPERATURE
     _attr_entity_category = EntityCategory.CONFIG
-    _attr_mode = NumberMode.BOX
-    _attr_native_step = 0.5
+    _attr_mode = NumberMode.SLIDER
+    _attr_native_step = 1
     _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
     _attr_translation_key = "run_temperature"
     _requires_connection = False
@@ -68,7 +70,8 @@ class MoenRunTemperature(MoenEntity, RestoreNumber):
         """Return the maximum run temperature, honouring the safety limit."""
         limit = self.device.get("safetyLimitTemp")
         if self.device.get("safetyModeEnabled") and isinstance(limit, (int, float)):
-            return min(float(limit), MAX_RUN_TEMPERATURE)
+            # Whole degrees keep the slider tidy; never round up past the limit.
+            return min(float(math.floor(limit)), MAX_RUN_TEMPERATURE)
         return MAX_RUN_TEMPERATURE
 
     @property

@@ -42,7 +42,7 @@ Each faucet gets:
 | Entity | Type | Notes |
 | --- | --- | --- |
 | Faucet (named after the device) | Valve | Open runs the water at the run temperature; close stops it. |
-| Run temperature | Number (config) | The temperature used when the valve is opened, in °C. Stored in Home Assistant, not on the faucet. Capped at the faucet's safety limit while safety mode is on. Defaults to 38 °C. |
+| Run temperature | Number (config) | The temperature used when the valve is opened: a slider in whole degrees. Stored in Home Assistant, not on the faucet. Capped at the faucet's safety limit while safety mode is on. Defaults to 38 °C. |
 | Water temperature | Sensor | Last reported outlet temperature. See [limitations](#limitations). |
 | Cabinet temperature | Sensor | Temperature of the under-sink control box. |
 | Battery | Sensor (diagnostic) | |

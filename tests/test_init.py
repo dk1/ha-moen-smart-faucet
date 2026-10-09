@@ -62,7 +62,9 @@ async def test_setup_and_entities(
         hass.states.get("binary_sensor.kitchen_faucet_freeze_risk").state == STATE_OFF
     )
     assert hass.states.get(RUN_TEMP).state == "38.0"
-    assert hass.states.get(RUN_TEMP).attributes["max"] == 48.889999
+    assert hass.states.get(RUN_TEMP).attributes["max"] == 48
+    assert hass.states.get(RUN_TEMP).attributes["mode"] == "slider"
+    assert hass.states.get(RUN_TEMP).attributes["step"] == 1
 
     # Wi-Fi signal is disabled by default.
     assert hass.states.get("sensor.kitchen_faucet_signal_strength") is None
