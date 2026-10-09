@@ -100,3 +100,6 @@ async def test_reauth(
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reauth_successful"
     assert mock_config_entry.data[CONF_PASSWORD] == "new-password"
+    # The entry reloads with the new password; unload it so no timers linger.
+    await hass.async_block_till_done()
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)

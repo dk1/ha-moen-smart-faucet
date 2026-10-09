@@ -30,13 +30,19 @@ from .const import (
     START_ON_WAVE,
     UNIT_TO_UL,
 )
-from .coordinator import MoenConfigEntry, MoenCoordinator, MoenRuntimeData
+from .coordinator import (
+    MoenConfigEntry,
+    MoenCoordinator,
+    MoenPresetCoordinator,
+    MoenRuntimeData,
+)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SENSOR,
+    Platform.SWITCH,
     Platform.VALVE,
 ]
 
@@ -83,7 +89,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN,
         SERVICE_RUN,
         entity_domain=VALVE_DOMAIN,
-        schema=RUN_SCHEMA,
+        schema=RUN_SCHEMA,  # type: ignore[arg-type,unused-ignore]
         func="async_run",
     )
     service.async_register_platform_entity_service(
@@ -91,7 +97,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         DOMAIN,
         SERVICE_DISPENSE,
         entity_domain=VALVE_DOMAIN,
-        schema=DISPENSE_SCHEMA,
+        schema=DISPENSE_SCHEMA,  # type: ignore[arg-type,unused-ignore]
         func="async_dispense",
     )
     return True
@@ -106,7 +112,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: MoenConfigEntry) -> bool
     )
     coordinator = MoenCoordinator(hass, entry, client)
     await coordinator.async_config_entry_first_refresh()
-    entry.runtime_data = MoenRuntimeData(client=client, coordinator=coordinator)
+    presets = MoenPresetCoordinator(hass, entry, client)
+    # Presets are optional: a failure here leaves the preset buttons
+    # unavailable instead of failing setup.
+    await presets.async_refresh()
+    entry.runtime_data = MoenRuntimeData(
+        client=client, coordinator=coordinator, presets=presets
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True
 

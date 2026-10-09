@@ -51,6 +51,17 @@
     "button": {
       "dispense": {
         "default": "mdi:cup-water"
+      },
+      "preset": {
+        "default": "mdi:playlist-play"
+      }
+    },
+    "switch": {
+      "freeze_protection": {
+        "default": "mdi:snowflake-thermometer",
+        "state": {
+          "off": "mdi:snowflake-off"
+        }
       }
     }
   },

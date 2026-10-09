@@ -6,7 +6,7 @@ from collections.abc import Generator
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, PropertyMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
@@ -38,9 +38,25 @@ def load_sessions() -> list[dict[str, Any]]:
     )
 
 
+def load_presets() -> list[dict[str, Any]]:
+    """Return the saved-presets fixture."""
+    return json.loads((Path(__file__).parent / "fixtures" / "presets.json").read_text())
+
+
 def faucets(devices: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Filter a device list the way the client does."""
     return {d["clientId"]: d for d in devices if d["deviceType"] == "VAK"}
+
+
+@pytest.fixture
+def entity_registry_enabled_by_default() -> Generator[None]:
+    """Create entities that are disabled by default as enabled."""
+    with patch(
+        "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
+        return_value=True,
+        new_callable=PropertyMock,
+    ):
+        yield
 
 
 @pytest.fixture
@@ -71,6 +87,7 @@ def mock_client() -> Generator[AsyncMock]:
         client.async_get_devices.return_value = devices
         client.async_get_faucets.return_value = faucets(devices)
         client.async_get_sessions.return_value = load_sessions()
+        client.async_get_presets.return_value = load_presets()
         yield client
 
 

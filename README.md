@@ -46,6 +46,8 @@ Each faucet gets:
 | Flow rate | Number | How hard the water runs when the valve opens: 30–100 %. Starts at the faucet's default flow rate. |
 | Dispense amount | Number | Amount poured by the Dispense button, in mL (15 mL to 3785 mL). Defaults to 250 mL. |
 | Dispense | Button | Pours the dispense amount at the run temperature, straight away. |
+| Preset *name* | Buttons | One per preset saved in the Moen app (shared across the account's faucets). Runs it exactly as the app would. New presets appear within 30 minutes; deleted ones become unavailable. |
+| Freeze protection | Switch (config) | When on, the faucet trickles water if its cabinet gets cold. |
 | Water temperature | Sensor | Last reported outlet temperature. See [limitations](#limitations). |
 | Cabinet temperature | Sensor | Temperature of the under-sink control box. |
 | Water usage | Sensor | Litres through the faucet, counted session by session from when the integration was added. Suitable for the Energy dashboard's water section. |
@@ -117,8 +119,8 @@ To stop the water, use `valve.close_valve`.
   temperature only when a run ends (the Moen app has the same limitation). The
   integration polls every 5 seconds while a faucet is running, instead of every 30, so
   the reading updates within a few seconds of the water stopping.
-- **Saved presets from the Moen app and faucet settings** (safety limit, child mode,
-  timeouts, gesture mode) are not supported yet.
+- **Creating or editing presets, and other faucet settings** (timeouts, default
+  temperature, gesture mode, safety and child limits) are not supported yet.
 - Tested with one faucet, Moen app version 3.60.0, and Home Assistant 2026.9 and
   2026.10.
 
@@ -132,11 +134,20 @@ Wi-Fi network name. Check the file before sharing it anyway.
 ```bash
 python3.14 -m venv .venv
 .venv/bin/pip install -r requirements_test.txt
-.venv/bin/pytest
+.venv/bin/pytest                      # tests, including entity snapshots
 .venv/bin/ruff check . && .venv/bin/ruff format --check .
+.venv/bin/mypy custom_components/moen_smart_faucet
 ```
 
-The API client in `api.py` has no Home Assistant dependencies.
+- `docs/api.md` documents the Moen cloud API this integration uses.
+- `api.py` has no Home Assistant dependencies.
+- After editing `strings.json`, run `python script/gen_translations.py`; a test
+  fails if `translations/en.json` is out of date.
+- After an intentional entity change, refresh snapshots with
+  `pytest --snapshot-update` and review the diff.
+- CI runs lint and type checks, the tests against the oldest supported and the
+  latest pinned Home Assistant (with a 95 % coverage floor), hassfest and HACS
+  validation, plus a weekly run to catch new Home Assistant releases.
 
 To try changes in a real Home Assistant without touching your main instance, run the
 dev instance in Docker. The integration folder is mounted read-only, so a container

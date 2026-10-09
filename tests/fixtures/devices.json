@@ -27,7 +27,8 @@
     "temperature": 35.867001,
     "temperatureGoal": "specific",
     "learnedMinTemp": 13.638,
-    "learnedMaxTemp": 54.037998
+    "learnedMaxTemp": 54.037998,
+    "freezeEnable": false
   },
   {
     "duid": "00000000-0000-4000-8000-000000000002",

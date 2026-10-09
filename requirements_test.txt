@@ -1,2 +1,4 @@
 pytest-homeassistant-custom-component==0.13.371
 ruff
+mypy
+pyyaml

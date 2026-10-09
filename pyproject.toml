@@ -17,3 +17,15 @@ ignore = ["D203", "D213", "E501"]
 force-sort-within-sections = true
 known-first-party = ["custom_components", "homeassistant"]
 combine-as-imports = true
+
+[tool.mypy]
+python_version = "3.14"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+# HA 2026.10 replaced voluptuous with probatio and aliases `voluptuous` to it for
+# custom integrations; schema arguments carry per-line ignores for that.
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true

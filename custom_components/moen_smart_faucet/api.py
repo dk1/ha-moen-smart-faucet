@@ -39,6 +39,8 @@ FN_DEVICE_LIST = "smartwater-app-device-api-prod-list"
 FN_SHADOW_GET = "smartwater-app-shadow-api-prod-get"
 FN_SHADOW_UPDATE = "smartwater-app-shadow-api-prod-update"
 FN_SESSIONS = "smartwater-app-session-api-prod-get-v1"
+FN_PRESET_LIST = "smartwater-app-preset-api-prod-list"
+FN_PRESET_RUN = "smartwater-app-preset-api-prod-run"
 
 DEVICE_TYPE_FAUCET = "VAK"
 
@@ -281,6 +283,31 @@ class MoenClient:
         if temperature is not None:
             payload["temperature"] = _temperature(temperature)
         await self._async_command(client_id, payload)
+
+    async def async_get_presets(self) -> list[dict[str, Any]]:
+        """Return the account's saved presets (shared by all its faucets).
+
+        Each has presetId, nickname, caseNumber and, depending on the preset,
+        temperature, amount {value, unit, display}, flowRate, purge and wait.
+        """
+        data = await self._async_invoke(FN_PRESET_LIST)
+        if not isinstance(data, list):
+            raise MoenConnectionError("Unexpected preset list response")
+        return [p for p in data if isinstance(p, dict) and p.get("presetId")]
+
+    async def async_run_preset(self, client_id: str, preset_id: str) -> None:
+        """Run a saved preset on a faucet, as the Moen app's preset buttons do."""
+        await self._async_invoke(
+            FN_PRESET_RUN, {"clientId": client_id, "presetId": preset_id}
+        )
+
+    async def async_set_freeze_protection(self, client_id: str, enabled: bool) -> None:
+        """Turn freeze protection on or off.
+
+        With it on, the faucet trickles water when its cabinet gets cold.
+        Settings are written through the same shadow update as commands.
+        """
+        await self._async_command(client_id, {"freezeEnable": bool(enabled)})
 
     async def async_stop(self, client_id: str) -> None:
         """Stop the water."""

@@ -3,16 +3,45 @@ name: Tests
 on:
   push:
   pull_request:
+  schedule:
+    # Weekly, to catch breaking changes in new Home Assistant releases.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
 
 jobs:
-  tests:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          cache: pip
       - run: pip install -r requirements_test.txt
       - run: ruff check .
       - run: ruff format --check .
-      - run: pytest --cov=custom_components.moen_smart_faucet --cov-report=term-missing
+      - run: mypy custom_components/moen_smart_faucet
+
+  tests:
+    name: tests (Home Assistant ${{ matrix.ha }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported release (hacs.json "homeassistant").
+          - ha: "2026.9.2"
+            harness: "0.13.365"
+            pytest-args: "--deselect tests/test_snapshots.py"
+          # Release the snapshots and coverage are pinned to.
+          - ha: "2026.10.0"
+            harness: "0.13.371"
+            pytest-args: "--cov=custom_components.moen_smart_faucet --cov-report=term-missing"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+      - run: pip install pytest-homeassistant-custom-component==${{ matrix.harness }} pyyaml
+      - run: pytest ${{ matrix.pytest-args }}

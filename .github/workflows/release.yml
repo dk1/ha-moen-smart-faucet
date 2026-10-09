@@ -1,0 +1,17 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches manifest version
+        run: |
+          manifest=$(python3 -c "import json;print(json.load(open('custom_components/moen_smart_faucet/manifest.json'))['version'])")
+          tag="${GITHUB_REF_NAME#v}"
+          echo "tag=$tag manifest=$manifest"
+          test "$tag" = "$manifest"

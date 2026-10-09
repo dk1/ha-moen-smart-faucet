@@ -1,0 +1,4 @@
+[
+  {"presetId": "preset-soup", "nickname": "soup", "caseNumber": "1", "deviceType": "VAK", "amount": {"value": 6, "unit": "CUPS", "display": "6"}, "temperature": "coldest", "flowRate": 100, "purge": true, "wait": true},
+  {"presetId": "preset-tea", "nickname": "tea", "caseNumber": "2a", "deviceType": "VAK", "amount": {"value": 8, "unit": "OUNCES", "display": "8"}, "temperature": "hottest", "flowRate": 100, "purge": false, "wait": false}
+]

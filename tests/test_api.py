@@ -2,9 +2,11 @@
 
 from http import HTTPStatus
 
+import aiohttp
 import pytest
 from pytest_homeassistant_custom_component.test_util.aiohttp import (
     AiohttpClientMocker,
+    AiohttpClientMockResponse,
 )
 
 from custom_components.moen_smart_faucet.api import (
@@ -213,3 +215,141 @@ async def test_sessions(
         "escape": True,
         "body": {"clientId": FAUCET_ID, "limit": 5, "deviceType": "VAK"},
     }
+
+
+async def test_presets(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Presets come back as a list; entries without an ID are dropped."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(
+        INVOKER_URL, json=[{"presetId": "a", "nickname": "tea"}, {"nickname": "broken"}]
+    )
+    assert await client(hass).async_get_presets() == [
+        {"presetId": "a", "nickname": "tea"}
+    ]
+    assert aioclient_mock.mock_calls[-1][2] == {
+        "fn": "smartwater-app-preset-api-prod-list",
+        "parse": True,
+        "escape": True,
+    }
+
+
+async def test_run_preset_and_freeze(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """Preset runs and the freeze setting use the documented payloads."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, json={"status": True})
+    moen = client(hass)
+    await moen.async_run_preset(FAUCET_ID, "p1")
+    await moen.async_set_freeze_protection(FAUCET_ID, True)
+    bodies = [c[2] for c in aioclient_mock.mock_calls if str(c[1]) == INVOKER_URL]
+    assert bodies[0]["fn"] == "smartwater-app-preset-api-prod-run"
+    assert bodies[0]["body"] == {"clientId": FAUCET_ID, "presetId": "p1"}
+    assert bodies[1]["body"] == {
+        "clientId": FAUCET_ID,
+        "payload": {"freezeEnable": True},
+    }
+
+
+async def test_expired_token_refreshes_first(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """An expired access token is refreshed before the call, not after a 401."""
+    moen = client(hass)
+    aioclient_mock.post(
+        TOKEN_URL,
+        json={"token": {"access_token": "a1", "refresh_token": "r1", "expires_in": 0}},
+    )
+    await moen.async_login()
+    aioclient_mock.clear_requests()
+    aioclient_mock.post(
+        TOKEN_URL, json={"token": {"access_token": "a2", "expires_in": "3600"}}
+    )
+    aioclient_mock.post(INVOKER_URL, json=[])
+    await moen.async_get_devices()
+    calls = aioclient_mock.mock_calls
+    assert calls[0][2]["grant_type"] == "refresh_token"
+    assert calls[1][3]["Authorization"] == "Bearer a2"
+    # A refresh response without a refresh token keeps the old one.
+    assert moen._tokens.refresh_token == "r1"
+
+
+async def test_rejected_refresh_falls_back_to_login(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """If the refresh token is rejected, the client logs in again."""
+    moen = client(hass)
+    aioclient_mock.post(
+        TOKEN_URL,
+        json={"token": {"access_token": "a1", "refresh_token": "r1", "expires_in": 0}},
+    )
+    await moen.async_login()
+    aioclient_mock.clear_requests()
+
+    grants = []
+
+    async def token(method, url, data):
+        grants.append(data["grant_type"])
+        if data["grant_type"] == "refresh_token":
+            return AiohttpClientMockResponse(
+                method, url, status=HTTPStatus.UNAUTHORIZED
+            )
+        return AiohttpClientMockResponse(method, url, json=TOKEN)
+
+    aioclient_mock.post(TOKEN_URL, side_effect=token)
+    aioclient_mock.post(INVOKER_URL, json=[])
+    await moen.async_get_devices()
+    assert grants == ["refresh_token", "client_credentials"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"json": {"unexpected": True}},
+        {"exc": aiohttp.ClientError},
+        {"exc": TimeoutError},
+    ],
+)
+async def test_login_bad_responses(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker, response: dict
+) -> None:
+    """Malformed responses and network errors are connection errors."""
+    aioclient_mock.post(TOKEN_URL, **response)
+    with pytest.raises(MoenConnectionError):
+        await client(hass).async_login()
+
+
+@pytest.mark.parametrize(
+    ("method", "args", "response"),
+    [
+        ("async_get_devices", (), {"json": {"not": "a list"}}),
+        ("async_get_sessions", (FAUCET_ID,), {"json": ["not", "a dict"]}),
+        ("async_get_presets", (), {"json": {"not": "a list"}}),
+        ("async_get_devices", (), {"status": HTTPStatus.INTERNAL_SERVER_ERROR}),
+        ("async_get_devices", (), {"exc": aiohttp.ClientError}),
+    ],
+)
+async def test_invoke_bad_responses(
+    hass: HomeAssistant,
+    aioclient_mock: AiohttpClientMocker,
+    method: str,
+    args: tuple,
+    response: dict,
+) -> None:
+    """Unexpected invoker responses raise MoenConnectionError."""
+    aioclient_mock.post(TOKEN_URL, json=TOKEN)
+    aioclient_mock.post(INVOKER_URL, **response)
+    with pytest.raises(MoenConnectionError):
+        await getattr(client(hass), method)(*args)
+
+
+async def test_bad_expires_in_defaults(
+    hass: HomeAssistant, aioclient_mock: AiohttpClientMocker
+) -> None:
+    """A non-numeric expires_in falls back to an hour."""
+    aioclient_mock.post(TOKEN_URL, json={"access_token": "flat", "expires_in": "soon"})
+    moen = client(hass)
+    await moen.async_login()
+    assert moen._tokens.access_token == "flat"

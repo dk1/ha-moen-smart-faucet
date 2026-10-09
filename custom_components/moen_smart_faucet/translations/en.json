@@ -78,6 +78,14 @@
     "button": {
       "dispense": {
         "name": "Dispense"
+      },
+      "preset": {
+        "name": "Preset {name}"
+      }
+    },
+    "switch": {
+      "freeze_protection": {
+        "name": "Freeze protection"
       }
     }
   },

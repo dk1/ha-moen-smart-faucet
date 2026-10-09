@@ -18,6 +18,7 @@ from .const import (
     LOGGER,
     MAX_RUN_TEMPERATURE,
     MIN_RUN_TEMPERATURE,
+    PRESET_SCAN_INTERVAL,
     RUN_START_GRACE,
     RUNNING_SCAN_INTERVAL,
     SCAN_INTERVAL,
@@ -33,6 +34,7 @@ class MoenRuntimeData:
 
     client: MoenClient
     coordinator: MoenCoordinator
+    presets: MoenPresetCoordinator
 
 
 class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
@@ -54,7 +56,7 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.client = client
         # Per-faucet settings kept in Home Assistant, owned by the number platform.
         self.run_temperatures: dict[str, float] = {}
-        self.flow_rates: dict[str, int] = {}
+        self.flow_rates: dict[str, float] = {}
         self.dispense_amounts_ml: dict[str, float] = {}
         # Faucets currently running a `run` that Home Assistant started, so that
         # changing the flow rate or run temperature can adjust it live.
@@ -151,3 +153,41 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 LOGGER.debug("Could not fetch sessions for %s: %s", client_id, err)
                 continue
             self._session_markers[client_id] = marker
+
+
+class MoenPresetCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
+    """The account's saved presets, keyed by preset ID.
+
+    Presets change rarely and are optional, so they're polled slowly and a
+    failure only makes the preset buttons unavailable.
+    """
+
+    config_entry: MoenConfigEntry
+
+    def __init__(
+        self, hass: HomeAssistant, config_entry: MoenConfigEntry, client: MoenClient
+    ) -> None:
+        """Initialize the coordinator."""
+        super().__init__(
+            hass,
+            LOGGER,
+            config_entry=config_entry,
+            name=f"{DOMAIN}_presets",
+            update_interval=PRESET_SCAN_INTERVAL,
+        )
+        self.client = client
+
+    async def _async_update_data(self) -> dict[str, dict[str, Any]]:
+        try:
+            presets = await self.client.async_get_presets()
+        except MoenAuthError as err:
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN, translation_key="invalid_auth"
+            ) from err
+        except MoenError as err:
+            raise UpdateFailed(
+                translation_domain=DOMAIN,
+                translation_key="update_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        return {p["presetId"]: p for p in presets}

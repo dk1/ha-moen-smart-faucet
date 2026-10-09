@@ -215,7 +215,7 @@ class MoenWaterUsageSensor(MoenEntity, RestoreSensor):
     def __init__(self, coordinator: MoenCoordinator, client_id: str) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, client_id, "water_usage")
-        self._attr_native_value = 0.0
+        self._total = 0.0
         self._last_session: int | None = None
 
     async def async_added_to_hass(self) -> None:
@@ -224,7 +224,7 @@ class MoenWaterUsageSensor(MoenEntity, RestoreSensor):
         if (last := await self.async_get_last_extra_data()) is not None:
             data = last.as_dict()
             if isinstance(value := data.get("native_value"), (int, float)):
-                self._attr_native_value = float(value)
+                self._total = float(value)
             self._last_session = data.get("last_session")
         self._add_new_sessions()
 
@@ -232,10 +232,15 @@ class MoenWaterUsageSensor(MoenEntity, RestoreSensor):
     def extra_restore_state_data(self) -> _UsageData:
         """Store the total and the last counted session."""
         return _UsageData(
-            self._attr_native_value,
+            self._total,
             self._attr_native_unit_of_measurement,
             self._last_session,
         )
+
+    @property
+    def native_value(self) -> float:
+        """Return the total in litres."""
+        return round(self._total, 3)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -259,6 +264,5 @@ class MoenWaterUsageSensor(MoenEntity, RestoreSensor):
             if s.get("timestamp", 0) > self._last_session and "totalVolUl" in s
         ]
         if new:
-            added = sum(s["totalVolUl"] for s in new) / 1_000_000
-            self._attr_native_value = float(self._attr_native_value or 0) + added
+            self._total += sum(s["totalVolUl"] for s in new) / 1_000_000
             self._last_session = max(s["timestamp"] for s in new)
