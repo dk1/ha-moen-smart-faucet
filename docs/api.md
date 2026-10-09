@@ -39,7 +39,7 @@ All carry `commandSrc: "app"` except `stop`.
 | Command | Payload | Behaviour |
 | --- | --- | --- |
 | `run` | `temperature` (°C, or `"hottest"`/`"coldest"`) | Water runs. **verified**. With a target the cold supply can't reach, it stops after `purgeTimeout` (120 s on the test faucet). **verified** |
-| `run` + flow | `temperature`, `flowRate` (30–100 %), `purge: false`, `wait: false` | The app's "run at temperature with a flow rate" preset. `flowRate` without `purge: false` was **ignored** in testing (flow stayed ~5 L/min). The flags are the untested fix. |
+| `run` + flow | `temperature`, `flowRate` (30–100 %), `purge: false`, `wait: false` | The app's "run at temperature with a flow rate" preset. **verified** 2026-10-09: peak flow dropped from ~5.1 to ~3.7 L/min. Without `purge: false` the faucet ignored `flowRate`. The app's live screen re-sends `run` to change a running faucet; doing the same from HA is untested. |
 | `run` (flow preview) | `flowRate`, plus `defaultFlowRate` or `lowFlowRate`, no temperature | The flow-settings screen. Writes the setting as a side effect. **code** |
 | `dispense_no_wait` | `volume` (µL), optional `temperature`, `purge: false`, `wait: false` | Pours now. 250 mL poured 0.25 L in 4.5 s. **verified** |
 | `dispense` | `volume`, `wait: true`, optional `temperature` + `purge: true` | Gets ready (runs up to temperature if `purge`) and pours when someone waves. **code** |
