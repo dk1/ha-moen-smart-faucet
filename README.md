@@ -78,9 +78,10 @@ To stop the water, use `valve.close_valve`.
 
 - **Cloud only.** If Moen's service or your internet connection is down, so is this
   integration.
-- **Water temperature lags while the water is running.** The faucet reports its
-  temperature to the cloud infrequently; the Moen app appears to request faster updates while its live view is open.
-  Expect the reading to update after the water stops.
+- **No live temperature while the water runs.** The faucet reports its water
+  temperature only when a run ends (the Moen app has the same limitation). The
+  integration polls every 5 seconds while a faucet is running, instead of every 30, so
+  the reading updates within a few seconds of the water stopping.
 - **Dispensing a measured volume, presets and faucet settings** (safety limit, child
   mode, timeouts) are not supported yet.
 - Tested with one faucet, Moen app version 3.60.0, and Home Assistant 2026.9 and

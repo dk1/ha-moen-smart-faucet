@@ -10,6 +10,7 @@ MANUFACTURER = "Moen"
 MODEL = "Smart Faucet"
 
 SCAN_INTERVAL = timedelta(seconds=30)
+RUNNING_SCAN_INTERVAL = timedelta(seconds=5)
 # The faucet reflects a command in its shadow within a few seconds.
 COMMAND_REFRESH_DELAY = 3
 

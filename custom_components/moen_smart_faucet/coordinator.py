@@ -11,7 +11,13 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .api import MoenAuthError, MoenClient, MoenError
-from .const import DOMAIN, LOGGER, SCAN_INTERVAL
+from .const import (
+    DOMAIN,
+    LOGGER,
+    RUNNING_SCAN_INTERVAL,
+    SCAN_INTERVAL,
+    STATE_RUNNING,
+)
 
 type MoenConfigEntry = ConfigEntry[MoenRuntimeData]
 
@@ -46,7 +52,7 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
     async def _async_update_data(self) -> dict[str, dict[str, Any]]:
         try:
-            return await self.client.async_get_faucets()
+            faucets = await self.client.async_get_faucets()
         except MoenAuthError as err:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
@@ -57,3 +63,8 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 translation_key="update_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        # The faucet reports its temperature only when a run ends, so poll
+        # quickly while any faucet is running to catch that moment.
+        running = any(f.get("state") == STATE_RUNNING for f in faucets.values())
+        self.update_interval = RUNNING_SCAN_INTERVAL if running else SCAN_INTERVAL
+        return faucets

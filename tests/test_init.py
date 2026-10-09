@@ -210,3 +210,33 @@ async def test_diagnostics(
     ):
         assert secret not in text
     assert diag["faucets"][0]["temperature"] == 35.867001
+
+
+async def test_fast_polling_while_running(
+    hass: HomeAssistant,
+    init_integration: MockConfigEntry,
+    mock_client: AsyncMock,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Polling speeds up while a faucet runs and slows down when it stops."""
+    coordinator = init_integration.runtime_data.coordinator
+    assert coordinator.update_interval == timedelta(seconds=30)
+
+    devices = load_devices()
+    devices[0]["state"] = "running"
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert coordinator.update_interval == timedelta(seconds=5)
+
+    calls = mock_client.async_get_faucets.await_count
+    devices[0]["state"] = "idle"
+    devices[0]["temperature"] = 40.0
+    mock_client.async_get_faucets.return_value = faucets(devices)
+    freezer.tick(timedelta(seconds=6))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert mock_client.async_get_faucets.await_count == calls + 1
+    assert coordinator.update_interval == timedelta(seconds=30)
+    assert hass.states.get("sensor.kitchen_faucet_water_temperature").state == "40.0"
