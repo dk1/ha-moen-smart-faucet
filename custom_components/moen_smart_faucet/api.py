@@ -249,7 +249,10 @@ class MoenClient:
             "temperature": _temperature(temperature),
         }
         if flow_rate is not None:
-            payload["flowRate"] = int(flow_rate)
+            # As the Moen app's "temperature + flow" preset sends it. Without
+            # purge: false the faucet ran at full flow regardless of flowRate,
+            # presumably purging to temperature first.
+            payload |= {"flowRate": int(flow_rate), "purge": False, "wait": False}
         await self._async_command(client_id, payload)
 
     async def async_dispense(

@@ -149,6 +149,8 @@ async def test_run_with_flow_rate(
         "commandSrc": "app",
         "temperature": 40.0,
         "flowRate": 60,
+        "purge": False,
+        "wait": False,
     }
 
 
