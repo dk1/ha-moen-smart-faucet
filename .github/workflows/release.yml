@@ -8,7 +8,7 @@ jobs:
   version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Tag matches manifest version
         run: |
           manifest=$(python3 -c "import json;print(json.load(open('custom_components/moen_smart_faucet/manifest.json'))['version'])")
