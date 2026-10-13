@@ -24,7 +24,9 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.typing import StateType
 
+from .const import FAUCET_STATES
 from .coordinator import MoenConfigEntry, MoenCoordinator
 from .entity import MoenEntity
 
@@ -43,10 +45,18 @@ def _number(key: str) -> Callable[[dict[str, Any]], float | None]:
 class MoenSensorDescription(SensorEntityDescription):
     """Describes a Moen faucet sensor."""
 
-    value_fn: Callable[[dict[str, Any]], float | None]
+    value_fn: Callable[[dict[str, Any]], StateType]
 
 
 SENSORS: tuple[MoenSensorDescription, ...] = (
+    MoenSensorDescription(
+        key="status",
+        translation_key="status",
+        device_class=SensorDeviceClass.ENUM,
+        options=FAUCET_STATES,
+        # A state this integration doesn't know yet shows as unknown.
+        value_fn=lambda d: d.get("state") if d.get("state") in FAUCET_STATES else None,
+    ),
     MoenSensorDescription(
         key="water_temperature",
         translation_key="water_temperature",
@@ -89,7 +99,7 @@ SENSORS: tuple[MoenSensorDescription, ...] = (
 class MoenSessionSensorDescription(SensorEntityDescription):
     """Describes a sensor about the faucet's most recent water use."""
 
-    value_fn: Callable[[dict[str, Any]], float | None]
+    value_fn: Callable[[dict[str, Any]], StateType]
 
 
 SESSION_SENSORS: tuple[MoenSessionSensorDescription, ...] = (
@@ -116,6 +126,11 @@ SESSION_SENSORS: tuple[MoenSessionSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfTemperature.CELSIUS,
         suggested_display_precision=1,
         value_fn=lambda s: s["avgTempC"],
+    ),
+    MoenSessionSensorDescription(
+        key="last_use_source",
+        translation_key="last_use_source",
+        value_fn=lambda s: s.get("source"),
     ),
 )
 
@@ -155,7 +170,7 @@ class MoenSensor(MoenEntity, SensorEntity):
         self.entity_description = description
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> StateType:
         """Return the sensor value."""
         return self.entity_description.value_fn(self.device)
 
@@ -177,7 +192,7 @@ class MoenSessionSensor(MoenEntity, SensorEntity):
         self.entity_description = description
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> StateType:
         """Return the value for the latest session."""
         sessions = self.coordinator.sessions.get(self.client_id)
         if not sessions:

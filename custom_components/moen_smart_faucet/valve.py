@@ -15,7 +15,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import MAX_DISPENSE_UL, MIN_DISPENSE_UL
-from .const import DOMAIN, RUN_START_GRACE, START_ON_WAVE, STATE_RUNNING, UNIT_TO_UL
+from .const import DOMAIN, RUN_START_GRACE, START_ON_WAVE, UNIT_TO_UL, WATER_ON_STATES
 from .coordinator import MoenConfigEntry
 from .entity import MoenEntity
 
@@ -59,13 +59,13 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
         """Return whether the water is off."""
         if self._optimistic_closed is not None:
             return self._optimistic_closed
-        return self.device.get("state") != STATE_RUNNING
+        return self.device.get("state") not in WATER_ON_STATES
 
     @callback
     def _handle_coordinator_update(self) -> None:
         # Keep showing what was just commanded until the faucet's report agrees,
         # or it has had long enough to react.
-        reported_closed = self.device.get("state") != STATE_RUNNING
+        reported_closed = self.device.get("state") not in WATER_ON_STATES
         if (
             self._optimistic_closed is not None
             and self._optimistic_closed != reported_closed
@@ -128,9 +128,8 @@ class MoenFaucetValve(MoenEntity, ValveEntity):
                 self.client_id, preset or temperature
             )
         wait = start == START_ON_WAVE
-        self.coordinator.end_run(self.client_id)
         await self._async_send(
-            self.coordinator.client.async_dispense(
+            self.coordinator.async_dispense(
                 self.client_id, volume_ul, target, wait_for_wave=wait
             ),
             # Pouring straight away opens the valve; waiting for a wave doesn't.

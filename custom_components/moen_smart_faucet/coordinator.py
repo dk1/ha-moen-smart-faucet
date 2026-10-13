@@ -24,6 +24,7 @@ from .const import (
     RUNNING_SCAN_INTERVAL,
     SCAN_INTERVAL,
     SESSION_RETRIES,
+    STATE_IDLE,
     STATE_RUNNING,
 )
 
@@ -73,6 +74,8 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # Runs Home Assistant started, so the flow rate and run temperature can
         # adjust them live. Anything else (dispense, preset, stop) ends tracking.
         self.active_runs: dict[str, ActiveRun] = {}
+        # Faucets that were sent purge/wait flags, to clear once they're idle.
+        self._flags_to_clear: set[str] = set()
         # Recent water-use sessions per faucet, newest first, and whether the
         # last fetch reached back as far as it was asked to (or to the start).
         self.sessions: dict[str, list[dict[str, Any]]] = {}
@@ -143,6 +146,27 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         flow = int(flow_rate or self.flow_rates[client_id])
         await self.client.async_run(client_id, target, flow)
         self.active_runs[client_id] = ActiveRun(target, flow, time.monotonic())
+        self._flags_to_clear.add(client_id)
+
+    async def async_dispense(
+        self,
+        client_id: str,
+        volume_ul: int,
+        target: float | str | None,
+        wait_for_wave: bool = False,
+    ) -> None:
+        """Dispense a measured amount; ends any live-adjustable run."""
+        self.end_run(client_id)
+        await self.client.async_dispense(
+            client_id, volume_ul, target, wait_for_wave=wait_for_wave
+        )
+        self._flags_to_clear.add(client_id)
+
+    async def async_run_preset(self, client_id: str, preset_id: str) -> None:
+        """Run a saved preset; ends any live-adjustable run."""
+        self.end_run(client_id)
+        await self.client.async_run_preset(client_id, preset_id)
+        self._flags_to_clear.add(client_id)
 
     def can_adjust_run(self, client_id: str) -> bool:
         """Return whether a run HA started is confirmed to be going right now."""
@@ -195,10 +219,11 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 translation_placeholders={"error": str(err)},
             ) from err
         self._track_runs(faucets)
+        await self._async_clear_flags(faucets)
         # The faucet reports its temperature only when a run ends, so poll
-        # quickly while any faucet is running (or about to) to catch that.
+        # quickly while any faucet is busy (or about to be) to catch that.
         running = self.active_runs or any(
-            f.get("state") == STATE_RUNNING for f in faucets.values()
+            f.get("state", STATE_IDLE) != STATE_IDLE for f in faucets.values()
         )
         self.update_interval = RUNNING_SCAN_INTERVAL if running else SCAN_INTERVAL
         await self._async_update_sessions(faucets)
@@ -217,6 +242,20 @@ class MoenCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 run.seen_running = True
             elif run.seen_running or now - run.sent >= RUN_START_GRACE:
                 del self.active_runs[client_id]
+
+    async def _async_clear_flags(self, faucets: dict[str, dict[str, Any]]) -> None:
+        """Clear leftover purge/wait flags once a faucet is idle again."""
+        for client_id in list(self._flags_to_clear):
+            if client_id in self.active_runs:
+                continue
+            if faucets.get(client_id, {}).get("state") != STATE_IDLE:
+                continue
+            try:
+                await self.client.async_clear_command_flags(client_id)
+            except MoenError as err:
+                LOGGER.debug("Could not clear command flags on %s: %s", client_id, err)
+                continue
+            self._flags_to_clear.discard(client_id)
 
     async def _async_update_sessions(self, faucets: dict[str, dict[str, Any]]) -> None:
         """Fetch session history for faucets that finished a session.

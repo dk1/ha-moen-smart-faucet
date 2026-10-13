@@ -19,7 +19,21 @@ RUN_START_GRACE = 15
 # Polls to keep looking for a session Moen hasn't recorded yet.
 SESSION_RETRIES = 4
 
+STATE_IDLE = "idle"
 STATE_RUNNING = "running"
+# Not in the Moen app's model, but reported by the faucet (seen 2026-10-13).
+STATE_PURGING = "purging"  # inferred: running up to temperature before a wave
+STATE_PURGED = "purged"  # ready, waiting for a wave to pour
+STATE_DISPENSING = "dispensing"
+FAUCET_STATES = [
+    STATE_IDLE,
+    STATE_RUNNING,
+    STATE_PURGING,
+    STATE_PURGED,
+    STATE_DISPENSING,
+]
+# States in which water is coming out.
+WATER_ON_STATES = {STATE_RUNNING, STATE_PURGING, STATE_DISPENSING}
 
 DEFAULT_RUN_TEMPERATURE = 38.0
 MIN_RUN_TEMPERATURE = 5.0

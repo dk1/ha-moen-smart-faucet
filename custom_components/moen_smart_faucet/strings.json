@@ -68,6 +68,19 @@
       },
       "water_usage": {
         "name": "Water usage"
+      },
+      "status": {
+        "name": "Status",
+        "state": {
+          "idle": "Idle",
+          "running": "Running",
+          "purging": "Getting to temperature",
+          "purged": "Ready, wave to pour",
+          "dispensing": "Dispensing"
+        }
+      },
+      "last_use_source": {
+        "name": "Last use source"
       }
     },
     "valve": {

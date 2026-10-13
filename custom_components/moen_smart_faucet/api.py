@@ -338,6 +338,15 @@ class MoenClient:
         """
         await self._async_command(client_id, {"freezeEnable": bool(enabled)})
 
+    async def async_clear_command_flags(self, client_id: str) -> None:
+        """Remove `purge`/`wait` left in the faucet's desired shadow state.
+
+        The faucet doesn't consume these flags, so after a command that sends
+        them they stay in the shadow and could affect later commands that don't
+        mention them (e.g. from the Moen app). A null value deletes a key.
+        """
+        await self._async_command(client_id, {"purge": None, "wait": None})
+
     async def async_stop(self, client_id: str) -> None:
         """Stop the water."""
         await self._async_command(client_id, {"command": "stop"})

@@ -26,25 +26,36 @@ async def async_setup_entry(
         MoenDispenseButton(coordinator, client_id) for client_id in coordinator.data
     )
 
-    known: set[str] = set()
+    known: dict[str, str | None] = {}  # preset ID -> nickname
     registry = er.async_get(hass)
 
     @callback
     def _sync_presets() -> None:
         if not presets.last_update_success:
             return
-        current = set(presets.data or {})
+        data = presets.data or {}
+        current = set(data)
+        # Presets renamed in the Moen app: entity names are fixed when entities
+        # are created, so reload to pick up the new name.
+        if any(
+            data[preset_id].get("nickname") != name
+            for preset_id, name in known.items()
+            if preset_id in data
+        ):
+            hass.config_entries.async_schedule_reload(entry.entry_id)
+            return
         # Presets deleted in the Moen app: remove their buttons.
-        for preset_id in known - current:
+        for preset_id in set(known) - current:
             for client_id in coordinator.data:
                 if entity_id := registry.async_get_entity_id(
                     BUTTON_DOMAIN, DOMAIN, f"{client_id}_preset_{preset_id}"
                 ):
                     registry.async_remove(entity_id)
-        known.intersection_update(current)
-        new = current - known
+        for preset_id in set(known) - current:
+            del known[preset_id]
+        new = current - set(known)
         if new:
-            known.update(new)
+            known.update({p: data[p].get("nickname") for p in new})
             async_add_entities(
                 MoenPresetButton(coordinator, presets, client_id, preset_id)
                 for client_id in coordinator.data
@@ -73,9 +84,8 @@ class MoenDispenseButton(MoenEntity, ButtonEntity):
         )
         volume_ul = round(amount_ml * 1000)
         temperature = coordinator.resolve_target(self.client_id, None)
-        coordinator.end_run(self.client_id)
         await self.async_send_command(
-            coordinator.client.async_dispense(self.client_id, volume_ul, temperature)
+            coordinator.async_dispense(self.client_id, volume_ul, temperature)
         )
 
 
@@ -121,7 +131,6 @@ class MoenPresetButton(MoenEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Run the preset."""
-        self.coordinator.end_run(self.client_id)
         await self.async_send_command(
-            self.coordinator.client.async_run_preset(self.client_id, self._preset_id)
+            self.coordinator.async_run_preset(self.client_id, self._preset_id)
         )

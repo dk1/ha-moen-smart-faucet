@@ -369,7 +369,9 @@ async def test_dispense_button(
         {ATTR_ENTITY_ID: "button.kitchen_faucet_dispense"},
         blocking=True,
     )
-    mock_client.async_dispense.assert_awaited_once_with(FAUCET_ID, 750_000, 38.0)
+    mock_client.async_dispense.assert_awaited_once_with(
+        FAUCET_ID, 750_000, 38.0, wait_for_wave=False
+    )
 
 
 async def test_session_sensors(

@@ -46,6 +46,18 @@
       },
       "water_usage": {
         "default": "mdi:water-pump"
+      },
+      "status": {
+        "default": "mdi:faucet",
+        "state": {
+          "running": "mdi:water",
+          "dispensing": "mdi:cup-water",
+          "purged": "mdi:hand-wave",
+          "purging": "mdi:thermometer-water"
+        }
+      },
+      "last_use_source": {
+        "default": "mdi:gesture-tap"
       }
     },
     "button": {
