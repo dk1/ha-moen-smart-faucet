@@ -8,6 +8,15 @@ and temperatures, and can start and stop the water from Home Assistant.
 > Moen or Fortune Brands. It uses the same cloud API as the Moen app, which Moen can
 > change at any time.
 
+Before installing, know that:
+
+- it needs Moen's cloud and your internet connection; there is no local control;
+- a run started from Home Assistant stops on its own after 2 minutes (the faucet's
+  limit, not this integration's);
+- the water temperature updates only after the water stops, as in the Moen app.
+
+See [Limitations](#limitations) for details.
+
 ## How it works
 
 The faucet has no local API. It talks only to Moen's cloud: an AWS IoT device
@@ -18,6 +27,10 @@ the faucet's shadow. An internet connection is required.
 ## Installation
 
 ### HACS
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=dk1&repository=ha-moen-smart-faucet&category=integration)
+
+Or add it by hand:
 
 1. In HACS, open the menu and choose **Custom repositories**.
 2. Add `https://github.com/dk1/ha-moen-smart-faucet` with the type **Integration**.
@@ -30,7 +43,9 @@ Copy `custom_components/moen_smart_faucet` into your Home Assistant
 
 ## Setup
 
-Go to **Settings → Devices & services → Add integration**, search for **Moen Smart
+[![Open your Home Assistant instance and start setting up Moen Smart Faucet.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=moen_smart_faucet)
+
+Or go to **Settings → Devices & services → Add integration**, search for **Moen Smart
 Faucet**, and sign in with the email and password you use in the Moen app. Every
 smart faucet on the account is added as a device; faucets added to the account later
 appear automatically, and ones removed can be deleted from the device page. If your password changes, Home
@@ -129,8 +144,25 @@ To stop the water, use `valve.close_valve`.
   the reading updates within a few seconds of the water stopping.
 - **Creating or editing presets, and other faucet settings** (timeouts, default
   temperature, gesture mode, safety and child limits) are not supported yet.
-- Tested with one faucet, Moen app version 3.60.0, and Home Assistant 2026.9 and
-  2026.10.
+- Tested with one faucet (firmware v1.1.2q), Moen app version 3.60.0, and Home
+  Assistant 2026.9 and 2026.10.
+
+## Other faucets wanted
+
+If you have a different Moen smart faucet model or firmware, please
+[open an issue](https://github.com/dk1/ha-moen-smart-faucet/issues) saying whether it
+works, and attach a diagnostics download (see below). That is the only way to test
+beyond one faucet.
+
+## Roadmap
+
+Not built yet, roughly in order:
+
+- Faucet settings: handle, sensor, voice and dispense timeouts, and default temperature.
+- Usage history by day, week and month from Moen's usage API.
+- Faucet alerts, with acknowledge and silence.
+- A sensor for how the last use ended (handle, wave, app, or the 2-minute limit).
+- Creating and editing presets.
 
 ## Diagnostics
 
