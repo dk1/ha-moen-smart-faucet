@@ -11,8 +11,8 @@ and temperatures, and can start and stop the water from Home Assistant.
 Before installing, know that:
 
 - it needs Moen's cloud and your internet connection; there is no local control;
-- a run started from Home Assistant stops on its own after 2 minutes (the faucet's
-  limit, not this integration's);
+- a run started from Home Assistant stops on its own after about 2 minutes (a faucet
+  timeout, 120 s by default; this integration doesn't set it);
 - the water temperature updates only after the water stops, as in the Moen app.
 
 See [Limitations](#limitations) for details.
@@ -48,8 +48,8 @@ Copy `custom_components/moen_smart_faucet` into your Home Assistant
 Or go to **Settings → Devices & services → Add integration**, search for **Moen Smart
 Faucet**, and sign in with the email and password you use in the Moen app. Every
 smart faucet on the account is added as a device; faucets added to the account later
-appear automatically, and ones removed can be deleted from the device page. If your password changes, Home
-Assistant prompts you to re-enter it.
+appear automatically, and ones removed can be deleted from the device page. If your
+password changes, Home Assistant prompts you to re-enter it.
 
 ## Entities
 
@@ -163,7 +163,8 @@ beyond one faucet.
 
 Not built yet, roughly in order:
 
-- Faucet settings: handle, sensor, voice and dispense timeouts, and default temperature.
+- Faucet settings: handle, sensor, voice and dispense timeouts, and default temperature
+  first; gesture mode and the safety and child limits may follow.
 - Usage history by day, week and month from Moen's usage API.
 - Faucet alerts, with acknowledge and silence.
 - A sensor for how the last use ended (handle, wave, app, or the 2-minute limit).
