@@ -53,6 +53,11 @@ Assistant prompts you to re-enter it.
 
 ## Entities
 
+<p>
+  <img src="https://raw.githubusercontent.com/dk1/ha-moen-smart-faucet/main/docs/images/controls.png" alt="Faucet controls on the device page" width="390">
+  <img src="https://raw.githubusercontent.com/dk1/ha-moen-smart-faucet/main/docs/images/sensors.png" alt="Faucet sensors on the device page" width="390">
+</p>
+
 Each faucet gets:
 
 | Entity | Type | Notes |
